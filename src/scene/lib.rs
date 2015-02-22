@@ -2,13 +2,12 @@ extern crate draw;
 extern crate gfx;
 extern crate cgmath;
 
-use cgmath::{BaseFloat, Zero, Matrix3, Matrix4};
+pub mod space;
+
+use cgmath::{BaseFloat, Zero, Matrix3, Matrix4, Transform3};
 
 //TODO
 pub struct Camera<S>(S);
-
-//TODO
-pub struct World<S>(S);
 
 #[derive(Debug)]
 pub enum DrawError {
@@ -41,9 +40,9 @@ impl<M> draw::Entity<M> for Entity<M> {
     }
 }
 
-pub struct Scene<S, M> {
+pub struct Scene<S, T, M> {
     pub entities: Vec<Entity<M>>,
-    pub world: World<S>,
+    pub world: space::World<S, T>,
     context: gfx::batch::Context,
 }
 
@@ -59,8 +58,8 @@ impl<S: Copy> draw::ToDepth<S> for Load<S> {
     }
 }
 
-impl<S: BaseFloat, M: draw::Material>
-AbstractScene<gfx::GlDevice> for Scene<S, M> {
+impl<S: BaseFloat, T: Transform3<S>, M: draw::Material>
+AbstractScene<gfx::GlDevice> for Scene<S, T, M> {
     type Scalar = S;
     type Entity = Entity<M>;
     type Load = Load<S>;
@@ -115,7 +114,7 @@ impl<
     }
 }
 
-pub type StandardScene<D, S, M> = PhaseHarness<
-    D, Scene<S, M>,
+pub type StandardScene<D, S, T, M> = PhaseHarness<
+    D, Scene<S, T, M>,
     Box<draw::AbstractPhase<D, Load<S>, Entity<M>>>
 >;

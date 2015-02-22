@@ -1,6 +1,7 @@
 #![feature(core)]
 
-struct Id<T>(u32, std::marker::PhantomData<T>);
+type IdType = u32;
+struct Id<T>(IdType, std::marker::PhantomData<T>);
 
 pub struct QueueIter<'a, T: 'a> {
     objects: &'a [T],
@@ -38,7 +39,7 @@ impl<T> Queue<T> {
         let ni = self.indices.len();
         if self.objects.len() > ni {
             self.indices.extend((ni.. self.objects.len()).map(|i|
-                Id(i as u32, std::marker::PhantomData)
+                Id(i as IdType, std::marker::PhantomData)
             ));
         }else
         if self.objects.len() < ni {
