@@ -12,3 +12,6 @@ name = "gfx_scene"
 
 [dependencies.queue]
 path = "src/queue"
+
+[dependencies.draw]
+path = "src/draw"

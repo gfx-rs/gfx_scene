@@ -1,0 +1,13 @@
+[package]
+name = "draw"
+version = "0.0.1"
+
+[lib]
+name = "draw"
+path = "lib.rs"
+
+[dependencies.queue]
+path = "../queue"
+
+[dependencies.gfx]
+git = "https://github.com/gfx-rs/gfx-rs"
