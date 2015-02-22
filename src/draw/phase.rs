@@ -1,22 +1,19 @@
 extern crate queue;
 
-use {Material, Technique, Entity};
 use std::cmp::Ordering;
 use gfx;
 
-//TODO: generalize
-pub type Renderer = gfx::Renderer<gfx::GlDevice>;
 pub type FlushError = gfx::DrawError<gfx::batch::OutOfBounds>;
 
-pub trait AbstractPhase<Z, E> {
+pub trait AbstractPhase<D: gfx::Device, Z, E> {
     /// Check if it makes sense to draw this entity
     fn does_apply(&self, &E) -> bool;
     /// Add an entity to the queue
     fn enqueue(&mut self, &E, Z, &mut gfx::batch::Context)
                -> Result<(), gfx::batch::BatchError>;
     /// Flush the queue into a given renderer
-    fn flush(&mut self, &gfx::Frame, &gfx::batch::Context, &mut Renderer)
-             -> Result<(), FlushError>;
+    fn flush(&mut self, &gfx::Frame<D::Resources>, &gfx::batch::Context,
+             &mut gfx::Renderer<D>) -> Result<(), FlushError>;
 }
 
 struct Object<S, P: gfx::shade::ShaderParam> {
@@ -44,7 +41,7 @@ pub trait ToDepth<S> {
     fn to_depth(&self) -> S;
 }
 
-pub struct Phase<S, Z, M: Material, T: Technique<Z, M>> {
+pub struct Phase<S, Z, M: ::Material, T: ::Technique<Z, M>> {
     pub name: String,
     technique: T,
     sort: Vec<Sort>,
@@ -55,10 +52,10 @@ pub struct Phase<S, Z, M: Material, T: Technique<Z, M>> {
 impl<
     S: PartialOrd,
     Z: ToDepth<S>,
-    M: Material,
-    E: Entity<M>,
-    T: Technique<Z, M>
->AbstractPhase<Z, E> for Phase<S, Z, M, T> {
+    M: ::Material,
+    E: ::Entity<M>,
+    T: ::Technique<Z, M>
+>AbstractPhase<gfx::GlDevice, Z, E> for Phase<S, Z, M, T> {
     fn does_apply(&self, entity: &E) -> bool {
         self.technique.does_apply(entity.get_material(), entity.get_mesh().0)
     }
@@ -89,8 +86,10 @@ impl<
     }
 
 
-    fn flush(&mut self, frame: &gfx::Frame, context: &gfx::batch::Context,
-             renderer: &mut Renderer) -> Result<(), FlushError> {
+    fn flush(&mut self, frame: &gfx::Frame<gfx::GlResources>,
+             context: &gfx::batch::Context,
+             renderer: &mut gfx::Renderer<gfx::GlDevice>)
+             -> Result<(), FlushError> {
         // sort the queue
         match self.sort.first() {
             Some(&Sort::FrontToBack) =>

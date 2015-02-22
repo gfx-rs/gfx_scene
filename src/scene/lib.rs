@@ -4,19 +4,11 @@ extern crate cgmath;
 
 use cgmath::{BaseFloat, Zero, Matrix3, Matrix4};
 
-//TODO: generalize
-pub type Renderer = gfx::Renderer<gfx::GlDevice>;
-
 //TODO
 pub struct Camera<S>(S);
-impl<S: Copy> Camera<S> {
-    fn get_s(&self) -> S {
-         self.0
-    }
-}
 
 //TODO
-pub struct World;
+pub struct World<S>(S);
 
 #[derive(Debug)]
 pub enum DrawError {
@@ -24,9 +16,14 @@ pub enum DrawError {
     Flush(draw::FlushError),
 }
 
-pub trait AbstractScene<S, Z, E> {
-    fn draw<P: draw::AbstractPhase<Z, E> + ?Sized>(&mut self, &mut P,
-            &Camera<S>, &gfx::Frame, &mut Renderer) -> Result<(), DrawError>;
+pub trait AbstractScene<D: gfx::Device> {
+    type Scalar;
+    type Entity;
+    type Load;
+
+    fn draw<P: draw::AbstractPhase<D, Self::Load, Self::Entity> + ?Sized>(
+            &mut self, &mut P, &Camera<Self::Scalar>, &gfx::Frame<D::Resources>,
+            &mut gfx::Renderer<D>) -> Result<(), DrawError>;
 }
 
 pub struct Entity<M> {
@@ -44,9 +41,9 @@ impl<M> draw::Entity<M> for Entity<M> {
     }
 }
 
-pub struct Scene<M> {
+pub struct Scene<S, M> {
     pub entities: Vec<Entity<M>>,
-    pub world: World,
+    pub world: World<S>,
     context: gfx::batch::Context,
 }
 
@@ -63,10 +60,16 @@ impl<S: Copy> draw::ToDepth<S> for Load<S> {
 }
 
 impl<S: BaseFloat, M: draw::Material>
-AbstractScene<S, Load<S>, Entity<M>> for Scene<M> {
-    fn draw<P: draw::AbstractPhase<Load<S>, Entity<M>> + ?Sized>(&mut self,
-            phase: &mut P, _camera: &Camera<S>, frame: &gfx::Frame,
-            renderer: &mut Renderer) -> Result<(), DrawError> {
+AbstractScene<gfx::GlDevice> for Scene<S, M> {
+    type Scalar = S;
+    type Entity = Entity<M>;
+    type Load = Load<S>;
+
+    fn draw<P: draw::AbstractPhase<gfx::GlDevice, Load<S>, Entity<M>> + ?Sized>(
+            &mut self, phase: &mut P, _camera: &Camera<S>,
+            frame: &gfx::Frame<gfx::GlResources>,
+            renderer: &mut gfx:: Renderer<gfx::GlDevice>)
+            -> Result<(), DrawError> {
         for entity in self.entities.iter_mut() {
             if !phase.does_apply(entity) {
                  continue
@@ -88,19 +91,22 @@ AbstractScene<S, Load<S>, Entity<M>> for Scene<M> {
     }
 }
 
-pub struct PhaseHarness<Z, E, C> {
+pub struct PhaseHarness<D: gfx::Device, C, P> {
     pub scene: C,
-    pub phases: Vec<Box<draw::AbstractPhase<Z, E>>>,
-    renderer: Renderer,
+    pub phases: Vec<P>,
+    pub renderer: gfx::Renderer<D>,
 }
 
-//impl<S, Z, E, C: AbstractScene<S, Z, E>> PhaseHarness<Z, E, C> {
-impl<S, E, C: AbstractScene<S, Load<S>, E>> PhaseHarness<Load<S>, E, C> {
-    pub fn draw(&mut self, camera: &Camera<S>, frame: &gfx::Frame)
-                -> Result<(), DrawError> {
+impl<
+    D: gfx::Device,
+    C: AbstractScene<D>,
+    P: draw::AbstractPhase<D, C::Load, C::Entity>
+> PhaseHarness<D, C, P> {
+    pub fn draw(&mut self, camera: &Camera<C::Scalar>,
+                frame: &gfx::Frame<D::Resources>) -> Result<(), DrawError> {
         self.renderer.reset();
         for phase in self.phases.iter_mut() {
-            match self.scene.draw(&mut **phase, camera, frame, &mut self.renderer) {
+            match self.scene.draw(phase, camera, frame, &mut self.renderer) {
                 Ok(_) => (),
                 Err(e) => return Err(e),
             }
@@ -109,4 +115,7 @@ impl<S, E, C: AbstractScene<S, Load<S>, E>> PhaseHarness<Load<S>, E, C> {
     }
 }
 
-pub type StandardScene<S, M> = PhaseHarness<S, M, Scene<M>>;
+pub type StandardScene<D, S, M> = PhaseHarness<
+    D, Scene<S, M>,
+    Box<draw::AbstractPhase<D, Load<S>, Entity<M>>>
+>;

@@ -33,7 +33,7 @@ dependencies = [
 [[package]]
 name = "gfx"
 version = "0.1.7"
-source = "git+https://github.com/gfx-rs/gfx-rs#f2c60f14820e1a1ff2f29bbca18776d2da7016ca"
+source = "git+https://github.com/gfx-rs/gfx-rs#c045b51a800f6fd5a2d73dc9a7df25c280bc50aa"
 dependencies = [
  "gfx_device_gl 0.1.3 (git+https://github.com/gfx-rs/gfx-rs)",
  "gfx_macros 0.1.6 (git+https://github.com/gfx-rs/gfx-rs)",
@@ -43,7 +43,7 @@ dependencies = [
 [[package]]
 name = "gfx_device_gl"
 version = "0.1.3"
-source = "git+https://github.com/gfx-rs/gfx-rs#f2c60f14820e1a1ff2f29bbca18776d2da7016ca"
+source = "git+https://github.com/gfx-rs/gfx-rs#c045b51a800f6fd5a2d73dc9a7df25c280bc50aa"
 dependencies = [
  "bitflags 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "gfx_gl 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -65,7 +65,7 @@ dependencies = [
 [[package]]
 name = "gfx_macros"
 version = "0.1.6"
-source = "git+https://github.com/gfx-rs/gfx-rs#f2c60f14820e1a1ff2f29bbca18776d2da7016ca"
+source = "git+https://github.com/gfx-rs/gfx-rs#c045b51a800f6fd5a2d73dc9a7df25c280bc50aa"
 
 [[package]]
 name = "gl_common"

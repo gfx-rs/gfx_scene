@@ -4,16 +4,16 @@ mod phase;
 
 pub use self::phase::{FlushError, AbstractPhase, Sort, ToDepth, Phase};
 
-//TODO: generalize
-pub type Program = gfx::ProgramHandle<gfx::GlResources>;
-
 /// Abstract material
 pub trait Material {
     type Params: gfx::shade::ShaderParam;
     fn get_params(&self) -> Self::Params;
 }
 
-pub type TechResult<'a, P> = (&'a Program, &'a gfx::DrawState, P);
+pub type TechResult<'a, P> = (
+    &'a gfx::ProgramHandle<gfx::GlResources>,
+    &'a gfx::DrawState, P
+);
 
 pub trait Technique<Z, M> {
     type Params: gfx::shade::ShaderParam;
