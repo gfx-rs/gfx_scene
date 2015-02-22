@@ -1,0 +1,16 @@
+[package]
+name = "scene"
+version = "0.0.1"
+
+[lib]
+name = "scene"
+path = "lib.rs"
+
+[dependencies.draw]
+path = "../draw"
+
+[dependencies.gfx]
+git = "https://github.com/gfx-rs/gfx-rs"
+
+[dependencies.cgmath]
+git = "https://github.com/bjz/cgmath-rs"

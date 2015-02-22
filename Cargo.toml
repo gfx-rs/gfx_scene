@@ -15,3 +15,6 @@ path = "src/queue"
 
 [dependencies.draw]
 path = "src/draw"
+
+[dependencies.scene]
+path = "src/scene"
