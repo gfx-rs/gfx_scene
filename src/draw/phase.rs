@@ -42,6 +42,8 @@ pub trait ToDepth {
     fn to_depth(&self) -> Self::Depth;
 }
 
+/// Phase is doing draw call accumulating and sorting,
+/// based a given technique.
 pub struct Phase<Z: ToDepth, M: ::Material, T: ::Technique<Z, M>> {
     pub name: String,
     technique: T,

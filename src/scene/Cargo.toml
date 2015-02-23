@@ -1,6 +1,7 @@
 [package]
 name = "scene"
 version = "0.0.1"
+description = "Space-aware scene rendering and culling."
 
 [lib]
 name = "scene"

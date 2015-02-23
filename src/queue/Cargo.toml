@@ -1,6 +1,7 @@
 [package]
 name = "queue"
 version = "0.0.1"
+description = "Basic draw queue with sorting by minimal updates."
 
 [lib]
 name = "queue"

@@ -1,6 +1,7 @@
 [package]
 name = "draw"
 version = "0.0.1"
+description = "Abstract high-level drawing processors."
 
 [lib]
 name = "draw"
