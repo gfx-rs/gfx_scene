@@ -25,23 +25,23 @@ pub trait AbstractScene<D: gfx::Device> {
             &mut gfx::Renderer<D>) -> Result<(), DrawError>;
 }
 
-pub struct Entity<M> {
+pub struct Entity<R: gfx::Resources, M> {
     material: M,
-    mesh: gfx::Mesh,
-    slice: gfx::Slice,
+    mesh: gfx::Mesh<R>,
+    slice: gfx::Slice<R>,
 }
 
-impl<M> draw::Entity<M> for Entity<M> {
+impl<R: gfx::Resources, M> draw::Entity<R, M> for Entity<R, M> {
     fn get_material(&self) -> &M {
         &self.material
     }
-    fn get_mesh(&self) -> (&gfx::Mesh, gfx::Slice) {
+    fn get_mesh(&self) -> (&gfx::Mesh<R>, gfx::Slice<R>) {
         (&self.mesh, self.slice)
     }
 }
 
-pub struct Scene<S, T, M> {
-    pub entities: Vec<Entity<M>>,
+pub struct Scene<R: gfx::Resources, S, T, M> {
+    pub entities: Vec<Entity<R, M>>,
     pub world: space::World<S, T>,
     context: gfx::batch::Context,
 }
@@ -60,12 +60,12 @@ impl<S: Copy + PartialOrd> draw::ToDepth for Load<S> {
 }
 
 impl<S: BaseFloat, T: Transform3<S>, M: draw::Material>
-AbstractScene<gfx::GlDevice> for Scene<S, T, M> {
+AbstractScene<gfx::GlDevice> for Scene<gfx::GlResources, S, T, M> {
     type Scalar = S;
-    type Entity = Entity<M>;
+    type Entity = Entity<gfx::GlResources, M>;
     type Load = Load<S>;
 
-    fn draw<P: draw::AbstractPhase<gfx::GlDevice, Load<S>, Entity<M>> + ?Sized>(
+    fn draw<P: draw::AbstractPhase<gfx::GlDevice, Load<S>, Entity<gfx::GlResources, M>> + ?Sized>(
             &mut self, phase: &mut P, _camera: &Camera<S>,
             frame: &gfx::Frame<gfx::GlResources>,
             renderer: &mut gfx:: Renderer<gfx::GlDevice>)
@@ -116,6 +116,6 @@ impl<
 }
 
 pub type StandardScene<D, S, T, M> = PhaseHarness<
-    D, Scene<S, T, M>,
-    Box<draw::AbstractPhase<D, Load<S>, Entity<M>>>
+    D, Scene<gfx::GlResources, S, T, M>,
+    Box<draw::AbstractPhase<D, Load<S>, Entity<gfx::GlResources, M>>>
 >;

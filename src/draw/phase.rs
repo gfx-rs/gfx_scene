@@ -44,7 +44,7 @@ pub trait ToDepth {
 
 /// Phase is doing draw call accumulating and sorting,
 /// based a given technique.
-pub struct Phase<Z: ToDepth, M: ::Material, T: ::Technique<Z, M>> {
+pub struct Phase<R, Z: ToDepth, M: ::Material, T: ::Technique<R, Z, M>> {
     pub name: String,
     technique: T,
     sort: Vec<Sort>,
@@ -55,9 +55,9 @@ pub struct Phase<Z: ToDepth, M: ::Material, T: ::Technique<Z, M>> {
 impl<
     Z: ToDepth,
     M: ::Material,
-    E: ::Entity<M>,
-    T: ::Technique<Z, M>
->AbstractPhase<gfx::GlDevice, Z, E> for Phase<Z, M, T> {
+    E: ::Entity<gfx::GlResources, M>,
+    T: ::Technique<gfx::GlResources, Z, M>
+>AbstractPhase<gfx::GlDevice, Z, E> for Phase<gfx::GlResources, Z, M, T> {
     fn does_apply(&self, entity: &E) -> bool {
         self.technique.does_apply(entity.get_material(), entity.get_mesh().0)
     }
