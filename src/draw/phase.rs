@@ -37,25 +37,25 @@ pub enum Sort {
     DrawState,
 }
 
-pub trait ToDepth<S> {
-    fn to_depth(&self) -> S;
+pub trait ToDepth {
+    type Depth: PartialOrd;
+    fn to_depth(&self) -> Self::Depth;
 }
 
-pub struct Phase<S, Z, M: ::Material, T: ::Technique<Z, M>> {
+pub struct Phase<Z: ToDepth, M: ::Material, T: ::Technique<Z, M>> {
     pub name: String,
     technique: T,
     sort: Vec<Sort>,
-    //TODO: queue::Queue<Object<S, (M::Params, T::Params)>>,
-    queue: queue::Queue<Object<S, T::Params>>,
+    //TODO: queue::Queue<Object<Z::Depth, (M::Params, T::Params)>>,
+    queue: queue::Queue<Object<Z::Depth, T::Params>>,
 }
 
 impl<
-    S: PartialOrd,
-    Z: ToDepth<S>,
+    Z: ToDepth,
     M: ::Material,
     E: ::Entity<M>,
     T: ::Technique<Z, M>
->AbstractPhase<gfx::GlDevice, Z, E> for Phase<S, Z, M, T> {
+>AbstractPhase<gfx::GlDevice, Z, E> for Phase<Z, M, T> {
     fn does_apply(&self, entity: &E) -> bool {
         self.technique.does_apply(entity.get_material(), entity.get_mesh().0)
     }

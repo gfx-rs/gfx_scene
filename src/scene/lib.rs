@@ -52,7 +52,8 @@ pub struct Load<S> {
     _normal_mx: Matrix3<S>,
 }
 
-impl<S: Copy> draw::ToDepth<S> for Load<S> {
+impl<S: Copy + PartialOrd> draw::ToDepth for Load<S> {
+    type Depth = S;
     fn to_depth(&self) -> S {
         self.depth
     }

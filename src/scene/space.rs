@@ -1,6 +1,10 @@
 use std::marker::PhantomData;
 use cgmath::{BaseFloat, Transform, Transform3};
 
+//NOTE:
+// This is just one of the possible implementations of the World
+// TODO: generalize with a trait
+
 type IdType = u32;
 pub struct Id<T>(IdType, PhantomData<T>);
 
