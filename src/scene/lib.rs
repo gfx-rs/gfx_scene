@@ -22,7 +22,7 @@ pub trait AbstractScene<D: gfx::Device> {
 
     fn draw<P: draw::AbstractPhase<D, Self::Load, Self::Entity> + ?Sized>(
             &mut self, &mut P, &Camera<Self::Scalar>, &gfx::Frame<D::Resources>,
-            &mut gfx::Renderer<D>) -> Result<(), DrawError>;
+            &mut gfx::Renderer<D::CommandBuffer>) -> Result<(), DrawError>;
 }
 
 pub struct Entity<R: gfx::Resources, M> {
@@ -43,7 +43,7 @@ impl<R: gfx::Resources, M> draw::Entity<R, M> for Entity<R, M> {
 pub struct Scene<R: gfx::Resources, S, T, M> {
     pub entities: Vec<Entity<R, M>>,
     pub world: space::World<S, T>,
-    context: gfx::batch::Context,
+    context: gfx::batch::Context<R>,
 }
 
 pub struct Load<S> {
@@ -59,16 +59,20 @@ impl<S: Copy + PartialOrd> draw::ToDepth for Load<S> {
     }
 }
 
-impl<S: BaseFloat, T: Transform3<S>, M: draw::Material>
-AbstractScene<gfx::GlDevice> for Scene<gfx::GlResources, S, T, M> {
+impl<
+    D: gfx::Device,
+    S: BaseFloat,
+    T: Transform3<S>,
+    M: draw::Material<D::Resources>
+> AbstractScene<D> for Scene<D::Resources, S, T, M> {
     type Scalar = S;
-    type Entity = Entity<gfx::GlResources, M>;
+    type Entity = Entity<D::Resources, M>;
     type Load = Load<S>;
 
-    fn draw<P: draw::AbstractPhase<gfx::GlDevice, Load<S>, Entity<gfx::GlResources, M>> + ?Sized>(
+    fn draw<P: draw::AbstractPhase<D, Load<S>, Entity<D::Resources, M>> + ?Sized>(
             &mut self, phase: &mut P, _camera: &Camera<S>,
-            frame: &gfx::Frame<gfx::GlResources>,
-            renderer: &mut gfx:: Renderer<gfx::GlDevice>)
+            frame: &gfx::Frame<D::Resources>,
+            renderer: &mut gfx::Renderer<D::CommandBuffer>)
             -> Result<(), DrawError> {
         for entity in self.entities.iter_mut() {
             if !phase.does_apply(entity) {
@@ -94,7 +98,7 @@ AbstractScene<gfx::GlDevice> for Scene<gfx::GlResources, S, T, M> {
 pub struct PhaseHarness<D: gfx::Device, C, P> {
     pub scene: C,
     pub phases: Vec<P>,
-    pub renderer: gfx::Renderer<D>,
+    pub renderer: gfx::Renderer<D::CommandBuffer>,
 }
 
 impl<
@@ -115,7 +119,9 @@ impl<
     }
 }
 
-pub type StandardScene<D, S, T, M> = PhaseHarness<
-    D, Scene<gfx::GlResources, S, T, M>,
-    Box<draw::AbstractPhase<D, Load<S>, Entity<gfx::GlResources, M>>>
->;
+/*//TODO: rust bug
+pub type StandardScene<D: gfx::Device, S, T, M: draw::Material<D::Resources>> =
+PhaseHarness<
+    D, Scene<D::Resources, S, T, M>,
+    Box<draw::AbstractPhase<D, Load<S>, Entity<D::Resources, M>>>
+>;*/

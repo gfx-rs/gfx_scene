@@ -9,11 +9,12 @@ pub trait AbstractPhase<D: gfx::Device, Z, E> {
     /// Check if it makes sense to draw this entity
     fn does_apply(&self, &E) -> bool;
     /// Add an entity to the queue
-    fn enqueue(&mut self, &E, Z, &mut gfx::batch::Context)
+    fn enqueue(&mut self, &E, Z, &mut gfx::batch::Context<D::Resources>)
                -> Result<(), gfx::batch::BatchError>;
     /// Flush the queue into a given renderer
-    fn flush(&mut self, &gfx::Frame<D::Resources>, &gfx::batch::Context,
-             &mut gfx::Renderer<D>) -> Result<(), FlushError>;
+    fn flush(&mut self, &gfx::Frame<D::Resources>,
+             &gfx::batch::Context<D::Resources>,
+             &mut gfx::Renderer<D::CommandBuffer>) -> Result<(), FlushError>;
 }
 
 struct Object<S, P: gfx::shade::ShaderParam> {
@@ -44,7 +45,12 @@ pub trait ToDepth {
 
 /// Phase is doing draw call accumulating and sorting,
 /// based a given technique.
-pub struct Phase<R, Z: ToDepth, M: ::Material, T: ::Technique<R, Z, M>> {
+pub struct Phase<
+    R: gfx::Resources,
+    Z: ToDepth,
+    M: ::Material<R>,
+    T: ::Technique<R, Z, M>
+>{
     pub name: String,
     technique: T,
     sort: Vec<Sort>,
@@ -53,18 +59,20 @@ pub struct Phase<R, Z: ToDepth, M: ::Material, T: ::Technique<R, Z, M>> {
 }
 
 impl<
+    D: gfx::Device,
     Z: ToDepth,
-    M: ::Material,
-    E: ::Entity<gfx::GlResources, M>,
-    T: ::Technique<gfx::GlResources, Z, M>
->AbstractPhase<gfx::GlDevice, Z, E> for Phase<gfx::GlResources, Z, M, T> {
+    M: ::Material<D::Resources>,
+    E: ::Entity<D::Resources, M>,
+    T: ::Technique<D::Resources, Z, M>
+>AbstractPhase<D, Z, E> for Phase<D::Resources, Z, M, T> {
     fn does_apply(&self, entity: &E) -> bool {
         self.technique.does_apply(entity.get_material(), entity.get_mesh().0)
     }
 
-    fn enqueue(&mut self, entity: &E, data: Z, context: &mut gfx::batch::Context)
+    fn enqueue(&mut self, entity: &E, data: Z,
+               context: &mut gfx::batch::Context<D::Resources>)
                -> Result<(), gfx::batch::BatchError> {
-        debug_assert!(self.does_apply(entity));
+        //debug_assert!(self.does_apply(entity)); //TODO (rust bug)
         let depth = data.to_depth();
         // TODO: batch cache
         let (mesh, slice) = entity.get_mesh();
@@ -88,9 +96,9 @@ impl<
     }
 
 
-    fn flush(&mut self, frame: &gfx::Frame<gfx::GlResources>,
-             context: &gfx::batch::Context,
-             renderer: &mut gfx::Renderer<gfx::GlDevice>)
+    fn flush(&mut self, frame: &gfx::Frame<D::Resources>,
+             context: &gfx::batch::Context<D::Resources>,
+             renderer: &mut gfx::Renderer<D::CommandBuffer>)
              -> Result<(), FlushError> {
         // sort the queue
         match self.sort.first() {
