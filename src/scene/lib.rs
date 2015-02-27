@@ -104,6 +104,8 @@ impl<
     }
 }
 
+/// Wrapper around a scene that carries a list of phases as well as the
+/// `Renderer`, allowing to isolate a command buffer completely.
 pub struct PhaseHarness<D: gfx::Device, C, P> {
     pub scene: C,
     pub phases: Vec<P>,
@@ -128,9 +130,12 @@ impl<
     }
 }
 
-/*//TODO: rust bug
-pub type StandardScene<D: gfx::Device, S, T, M: draw::Material<D::Resources>> =
-PhaseHarness<
-    D, Scene<D::Resources, S, T, M>,
-    Box<draw::AbstractPhase<D, Load<S>, Entity<D::Resources, M>>>
->;*/
+/// A typical scene to be used in demoes. Has a heterogeneous vector of phases.
+pub type StandardScene<
+    D: gfx::Device,
+    M: draw::Material,
+    W: World,
+> = PhaseHarness<
+    D, Scene<D::Resources, M, W>,
+    Box<draw::AbstractPhase<D, SpaceData<W::Scalar>, Entity<D::Resources, M>>>
+>;
