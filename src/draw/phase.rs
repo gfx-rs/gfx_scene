@@ -49,7 +49,7 @@ pub struct Phase<
     R: gfx::Resources,
     M: ::Material,
     Z: ToDepth,
-    T: ::Technique<R, M, Z>
+    T: ::Technique<R, M, Z>,
 >{
     pub name: String,
     technique: T,
@@ -62,26 +62,25 @@ impl<
     M: ::Material,
     Z: ToDepth + Copy,
     E: ::Entity<D::Resources, M>,
-    T: ::Technique<D::Resources, M, Z>
+    T: ::Technique<D::Resources, M, Z>,
 >AbstractPhase<D, Z, E> for Phase<D::Resources, M, Z, T> {
     fn does_apply(&self, entity: &E) -> bool {
         self.technique.does_apply(entity.get_material(), entity.get_mesh().0)
     }
 
-    fn enqueue(&mut self, entity: &E, world_info: Z,
+    fn enqueue(&mut self, entity: &E, data: Z,
                context: &mut gfx::batch::Context<D::Resources>)
                -> Result<(), gfx::batch::BatchError> {
         //debug_assert!(self.does_apply(entity)); //TODO (rust bug)
-        let depth = world_info.to_depth();
+        let depth = data.to_depth();
         // TODO: batch cache
         let (mesh, slice) = entity.get_mesh();
         let (program, state, mut param) = self.technique.compile(
-            mesh, entity.get_material(), world_info);
+            mesh, entity.get_material(), data);
         match context.make_batch(program, mesh, slice, state) {
             Ok(b) => {
                 //TODO: only if cached
-                self.technique.fix_params(entity.get_material(), &world_info,
-                                          &mut param);
+                self.technique.fix_params(entity.get_material(), &data, &mut param);
                 let object = Object {
                     batch: b,
                     parameters: param,

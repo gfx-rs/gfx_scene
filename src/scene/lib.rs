@@ -2,8 +2,6 @@ extern crate draw;
 extern crate gfx;
 extern crate cgmath;
 
-pub mod space;
-
 use cgmath::{BaseFloat, Zero, Matrix3, Matrix4, Transform3};
 
 //TODO
@@ -18,9 +16,9 @@ pub enum DrawError {
 pub trait AbstractScene<D: gfx::Device> {
     type Scalar;
     type Entity;
-    type WorldInfo;
+    type SpaceData;
 
-    fn draw<P: draw::AbstractPhase<D, Self::WorldInfo, Self::Entity> + ?Sized>(
+    fn draw<P: draw::AbstractPhase<D, Self::SpaceData, Self::Entity> + ?Sized>(
             &mut self, &mut P, &Camera<Self::Scalar>, &gfx::Frame<D::Resources>,
             &mut gfx::Renderer<D::CommandBuffer>) -> Result<(), DrawError>;
 }
@@ -40,19 +38,31 @@ impl<R: gfx::Resources, M> draw::Entity<R, M> for Entity<R, M> {
     }
 }
 
-pub struct Scene<R: gfx::Resources, S, T, M> {
+/// A class that manages spatial relations between objects
+pub trait World {
+    type Scalar: cgmath::BaseFloat;
+    type Transform: cgmath::Transform3<Self::Scalar>;
+    type NodePtr;
+    type SkeletonPtr;
+    type Iter: Iterator<Item = Self::Transform>;
+
+    fn get_transform(&self, Self::NodePtr) -> &Self::Transform;
+    fn iter_bones(&self, Self::SkeletonPtr) -> Self::Iter;
+}
+
+pub struct Scene<R: gfx::Resources, M, W> {
     pub entities: Vec<Entity<R, M>>,
-    pub world: space::World<S, T>,
+    pub world: W,
     context: gfx::batch::Context<R>,
 }
 
-pub struct WorldInfo<S> {
+pub struct SpaceData<S> {
     depth: S,
     _vertex_mx: Matrix4<S>,
     _normal_mx: Matrix3<S>,
 }
 
-impl<S: Copy + PartialOrd> draw::ToDepth for WorldInfo<S> {
+impl<S: Copy + PartialOrd> draw::ToDepth for SpaceData<S> {
     type Depth = S;
     fn to_depth(&self) -> S {
         self.depth
@@ -61,16 +71,15 @@ impl<S: Copy + PartialOrd> draw::ToDepth for WorldInfo<S> {
 
 impl<
     D: gfx::Device,
-    S: BaseFloat,
-    T: Transform3<S>,
-    M: draw::Material
-> AbstractScene<D> for Scene<D::Resources, S, T, M> {
-    type Scalar = S;
+    M: draw::Material,
+    W: World,
+> AbstractScene<D> for Scene<D::Resources, M, W> {
+    type Scalar = W::Scalar;
     type Entity = Entity<D::Resources, M>;
-    type WorldInfo = WorldInfo<S>;
+    type SpaceData = SpaceData<W::Scalar>;
 
-    fn draw<P: draw::AbstractPhase<D, WorldInfo<S>, Entity<D::Resources, M>> + ?Sized>(
-            &mut self, phase: &mut P, _camera: &Camera<S>,
+    fn draw<P: draw::AbstractPhase<D, SpaceData<W::Scalar>, Entity<D::Resources, M>> + ?Sized>(
+            &mut self, phase: &mut P, _camera: &Camera<W::Scalar>,
             frame: &gfx::Frame<D::Resources>,
             renderer: &mut gfx::Renderer<D::CommandBuffer>)
             -> Result<(), DrawError> {
@@ -80,7 +89,7 @@ impl<
             }
             //TODO: cull `ent.bounds` here
             //TODO: compute depth here
-            let data = WorldInfo {
+            let data = SpaceData {
                 depth: Zero::zero(),
                 _vertex_mx: Matrix4::identity(),
                 _normal_mx: Matrix3::identity(),
@@ -104,7 +113,7 @@ pub struct PhaseHarness<D: gfx::Device, C, P> {
 impl<
     D: gfx::Device,
     C: AbstractScene<D>,
-    P: draw::AbstractPhase<D, C::WorldInfo, C::Entity>
+    P: draw::AbstractPhase<D, C::SpaceData, C::Entity>
 > PhaseHarness<D, C, P> {
     pub fn draw(&mut self, camera: &Camera<C::Scalar>,
                 frame: &gfx::Frame<D::Resources>) -> Result<(), DrawError> {
