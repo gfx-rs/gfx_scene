@@ -5,7 +5,7 @@ use gfx;
 
 pub type FlushError = gfx::DrawError<gfx::batch::OutOfBounds>;
 
-pub trait AbstractPhase<D: gfx::Device, Z, E> {
+pub trait AbstractPhase<D: gfx::Device, E, Z> {
     /// Check if it makes sense to draw this entity
     fn does_apply(&self, &E) -> bool;
     /// Add an entity to the queue
@@ -63,7 +63,7 @@ impl<
     Z: ToDepth + Copy,
     E: ::Entity<D::Resources, M>,
     T: ::Technique<D::Resources, M, Z>,
->AbstractPhase<D, Z, E> for Phase<D::Resources, M, Z, T> {
+>AbstractPhase<D, E, Z> for Phase<D::Resources, M, Z, T> {
     fn does_apply(&self, entity: &E) -> bool {
         self.technique.does_apply(entity.get_material(), entity.get_mesh().0)
     }
@@ -71,7 +71,10 @@ impl<
     fn enqueue(&mut self, entity: &E, data: Z,
                context: &mut gfx::batch::Context<D::Resources>)
                -> Result<(), gfx::batch::BatchError> {
-        //debug_assert!(self.does_apply(entity)); //TODO (rust bug)
+        // unable to use `self.does_apply` here
+        debug_assert!(self.technique.does_apply(
+            entity.get_material(), entity.get_mesh().0
+        ));
         let depth = data.to_depth();
         // TODO: batch cache
         let (mesh, slice) = entity.get_mesh();
