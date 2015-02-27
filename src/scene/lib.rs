@@ -18,9 +18,9 @@ pub enum DrawError {
 pub trait AbstractScene<D: gfx::Device> {
     type Scalar;
     type Entity;
-    type Load;
+    type WorldInfo;
 
-    fn draw<P: draw::AbstractPhase<D, Self::Load, Self::Entity> + ?Sized>(
+    fn draw<P: draw::AbstractPhase<D, Self::WorldInfo, Self::Entity> + ?Sized>(
             &mut self, &mut P, &Camera<Self::Scalar>, &gfx::Frame<D::Resources>,
             &mut gfx::Renderer<D::CommandBuffer>) -> Result<(), DrawError>;
 }
@@ -46,13 +46,13 @@ pub struct Scene<R: gfx::Resources, S, T, M> {
     context: gfx::batch::Context<R>,
 }
 
-pub struct Load<S> {
+pub struct WorldInfo<S> {
     depth: S,
     _vertex_mx: Matrix4<S>,
     _normal_mx: Matrix3<S>,
 }
 
-impl<S: Copy + PartialOrd> draw::ToDepth for Load<S> {
+impl<S: Copy + PartialOrd> draw::ToDepth for WorldInfo<S> {
     type Depth = S;
     fn to_depth(&self) -> S {
         self.depth
@@ -63,13 +63,13 @@ impl<
     D: gfx::Device,
     S: BaseFloat,
     T: Transform3<S>,
-    M: draw::Material<D::Resources>
+    M: draw::Material
 > AbstractScene<D> for Scene<D::Resources, S, T, M> {
     type Scalar = S;
     type Entity = Entity<D::Resources, M>;
-    type Load = Load<S>;
+    type WorldInfo = WorldInfo<S>;
 
-    fn draw<P: draw::AbstractPhase<D, Load<S>, Entity<D::Resources, M>> + ?Sized>(
+    fn draw<P: draw::AbstractPhase<D, WorldInfo<S>, Entity<D::Resources, M>> + ?Sized>(
             &mut self, phase: &mut P, _camera: &Camera<S>,
             frame: &gfx::Frame<D::Resources>,
             renderer: &mut gfx::Renderer<D::CommandBuffer>)
@@ -80,7 +80,7 @@ impl<
             }
             //TODO: cull `ent.bounds` here
             //TODO: compute depth here
-            let data = Load {
+            let data = WorldInfo {
                 depth: Zero::zero(),
                 _vertex_mx: Matrix4::identity(),
                 _normal_mx: Matrix3::identity(),
@@ -104,7 +104,7 @@ pub struct PhaseHarness<D: gfx::Device, C, P> {
 impl<
     D: gfx::Device,
     C: AbstractScene<D>,
-    P: draw::AbstractPhase<D, C::Load, C::Entity>
+    P: draw::AbstractPhase<D, C::WorldInfo, C::Entity>
 > PhaseHarness<D, C, P> {
     pub fn draw(&mut self, camera: &Camera<C::Scalar>,
                 frame: &gfx::Frame<D::Resources>) -> Result<(), DrawError> {

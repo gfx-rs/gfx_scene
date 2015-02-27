@@ -47,45 +47,44 @@ pub trait ToDepth {
 /// based a given technique.
 pub struct Phase<
     R: gfx::Resources,
+    M: ::Material,
     Z: ToDepth,
-    M: ::Material<R>,
-    T: ::Technique<R, Z, M>
+    T: ::Technique<R, M, Z>
 >{
     pub name: String,
     technique: T,
     sort: Vec<Sort>,
-    //TODO: queue::Queue<Object<Z::Depth, (M::Params, T::Params)>>,
     queue: queue::Queue<Object<Z::Depth, T::Params>>,
 }
 
 impl<
     D: gfx::Device,
-    Z: ToDepth,
-    M: ::Material<D::Resources>,
+    M: ::Material,
+    Z: ToDepth + Copy,
     E: ::Entity<D::Resources, M>,
-    T: ::Technique<D::Resources, Z, M>
->AbstractPhase<D, Z, E> for Phase<D::Resources, Z, M, T> {
+    T: ::Technique<D::Resources, M, Z>
+>AbstractPhase<D, Z, E> for Phase<D::Resources, M, Z, T> {
     fn does_apply(&self, entity: &E) -> bool {
         self.technique.does_apply(entity.get_material(), entity.get_mesh().0)
     }
 
-    fn enqueue(&mut self, entity: &E, data: Z,
+    fn enqueue(&mut self, entity: &E, world_info: Z,
                context: &mut gfx::batch::Context<D::Resources>)
                -> Result<(), gfx::batch::BatchError> {
         //debug_assert!(self.does_apply(entity)); //TODO (rust bug)
-        let depth = data.to_depth();
+        let depth = world_info.to_depth();
         // TODO: batch cache
         let (mesh, slice) = entity.get_mesh();
-        let (program, state, tparam) = self.technique.compile(
-            entity.get_material(), mesh, data);
+        let (program, state, mut param) = self.technique.compile(
+            mesh, entity.get_material(), world_info);
         match context.make_batch(program, mesh, slice, state) {
             Ok(b) => {
-                let _mparam = entity.get_material().get_params();
                 //TODO: only if cached
-                //self.technique.fix_params(&data, &mut tparam);
+                self.technique.fix_params(entity.get_material(), &world_info,
+                                          &mut param);
                 let object = Object {
                     batch: b,
-                    parameters: tparam, //TODO: (mparam, tparam)
+                    parameters: param,
                     depth: depth,
                 };
                 self.queue.objects.push(object);
@@ -94,7 +93,6 @@ impl<
             Err(e) => Err(e),
         }
     }
-
 
     fn flush(&mut self, frame: &gfx::Frame<D::Resources>,
              context: &gfx::batch::Context<D::Resources>,

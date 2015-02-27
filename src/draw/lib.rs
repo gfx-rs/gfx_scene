@@ -2,14 +2,11 @@ extern crate gfx;
 
 mod phase;
 
+use std::marker::PhantomFn;
 pub use self::phase::{FlushError, AbstractPhase, Sort, ToDepth, Phase};
 
 /// Abstract material
-/// The only thing that we need from it is `ShaderParam`.
-pub trait Material<R: gfx::Resources> {
-    type Params: gfx::shade::ShaderParam<Resources = R>;
-    fn get_params(&self) -> Self::Params;
-}
+pub trait Material: PhantomFn<Self> {}
 
 pub type TechResult<'a, R, P> = (
     &'a gfx::ProgramHandle<R>,
@@ -19,12 +16,12 @@ pub type TechResult<'a, R, P> = (
 /// Technique is basically a `Fn(Entity) -> Option<TechResult>`
 /// It processes a material, checks for the compatibility, adds a mesh
 /// to produce a shader program with associated data (state, parameters).
-pub trait Technique<R: gfx::Resources, Z, M> {
+pub trait Technique<R: gfx::Resources, M, Z> {
     type Params: gfx::shade::ShaderParam<Resources = R>;
     fn does_apply(&self, &M, &gfx::Mesh<R>) -> bool;
-    fn compile<'a>(&'a self, &M, &gfx::Mesh<R>, Z)
+    fn compile<'a>(&'a self, &gfx::Mesh<R>, &M, Z)
                    -> TechResult<'a, R, Self::Params>;
-    fn fix_params(&self, &Z, &mut Self::Params);
+    fn fix_params(&self, &M, &Z, &mut Self::Params);
 }
 
 /// Abstract Entity
