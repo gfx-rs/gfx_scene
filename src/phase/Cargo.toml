@@ -1,13 +1,13 @@
 [package]
-name = "draw"
+name = "gfx_phase"
 version = "0.0.1"
-description = "Abstract high-level drawing processors."
+description = "Render phase abstraction for gfx-rs"
 
 [lib]
-name = "draw"
+name = "gfx_phase"
 path = "lib.rs"
 
-[dependencies.queue]
+[dependencies.draw_queue]
 path = "../queue"
 
 [dependencies.gfx]

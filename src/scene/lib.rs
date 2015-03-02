@@ -1,4 +1,4 @@
-extern crate draw;
+extern crate "gfx_phase" as phase;
 extern crate gfx;
 extern crate cgmath;
 
@@ -24,7 +24,7 @@ pub struct Entity<R: gfx::Resources, M, W: World> {
     skeleton: Option<W::SkeletonPtr>,
 }
 
-impl<R: gfx::Resources, M, W: World> draw::Entity<R, M> for Entity<R, M, W> {
+impl<R: gfx::Resources, M, W: World> phase::Entity<R, M> for Entity<R, M, W> {
     fn get_material(&self) -> &M {
         &self.material
     }
@@ -51,7 +51,7 @@ pub struct SpaceData<S> {
     pub normal_mx: cgmath::Matrix3<S>,
 }
 
-impl<S: cgmath::BaseFloat> draw::ToDepth for SpaceData<S> {
+impl<S: cgmath::BaseFloat> phase::ToDepth for SpaceData<S> {
     type Depth = S;
     fn to_depth(&self) -> S {
         self.vertex_mx.w.z / self.vertex_mx.w.w
@@ -60,19 +60,19 @@ impl<S: cgmath::BaseFloat> draw::ToDepth for SpaceData<S> {
 
 impl<
     D: gfx::Device,
-    M: draw::Material,
+    M: phase::Material,
     W: World,
     P: cgmath::Projection<W::Scalar>,
-> draw::AbstractScene<D> for Scene<D::Resources, M, W, P> {
+> phase::AbstractScene<D> for Scene<D::Resources, M, W, P> {
     type SpaceData = SpaceData<W::Scalar>;
     type Entity = Entity<D::Resources, M, W>;
     type Camera = Camera<P, W::NodePtr>;
 
-    fn draw<H: draw::AbstractPhase<D, Entity<D::Resources, M, W>, SpaceData<W::Scalar>> + ?Sized>(
+    fn draw<H: phase::AbstractPhase<D, Entity<D::Resources, M, W>, SpaceData<W::Scalar>> + ?Sized>(
             &mut self, phase: &mut H, camera: &Camera<P, W::NodePtr>,
             frame: &gfx::Frame<D::Resources>,
             renderer: &mut gfx::Renderer<D::CommandBuffer>)
-            -> Result<(), draw::Error> {
+            -> Result<(), phase::Error> {
         use cgmath::{Matrix, ToMatrix3, ToMatrix4, Transform, ToComponents};
         let cam_inverse = self.world.get_transform(&camera.node)
                                     .invert().unwrap();
@@ -93,11 +93,11 @@ impl<
             };
             match phase.enqueue(entity, data, &mut self.context) {
                 Ok(()) => (),
-                Err(e) => return Err(draw::Error::Batch(e)),
+                Err(e) => return Err(phase::Error::Batch(e)),
             }
         }
         phase.flush(frame, &self.context, renderer)
-             .map_err(|e| draw::Error::Flush(e))
+             .map_err(|e| phase::Error::Flush(e))
     }
 }
 
@@ -111,11 +111,11 @@ pub struct PhaseHarness<D: gfx::Device, C, P> {
 
 impl<
     D: gfx::Device,
-    C: draw::AbstractScene<D>,
-    H: draw::AbstractPhase<D, C::Entity, C::SpaceData>
+    C: phase::AbstractScene<D>,
+    H: phase::AbstractPhase<D, C::Entity, C::SpaceData>
 > PhaseHarness<D, C, H> {
     pub fn draw(&mut self, camera: &C::Camera, frame: &gfx::Frame<D::Resources>)
-                -> Result<(), draw::Error> {
+                -> Result<(), phase::Error> {
         self.renderer.reset();
         for phase in self.phases.iter_mut() {
             match self.scene.draw(phase, camera, frame, &mut self.renderer) {
@@ -136,10 +136,10 @@ pub type PerspectiveCam<W: World> = Camera<
 /// and a perspective fov-based camera.
 pub type StandardScene<
     D: gfx::Device,
-    M: draw::Material,
+    M: phase::Material,
     W: World,
     P: cgmath::Projection<W::Scalar>,
 > = PhaseHarness<D,
     Scene<D::Resources, M, W, P>,
-    Box<draw::AbstractPhase<D, Entity<D::Resources, M, W>, SpaceData<W::Scalar>>>
+    Box<phase::AbstractPhase<D, Entity<D::Resources, M, W>, SpaceData<W::Scalar>>>
 >;

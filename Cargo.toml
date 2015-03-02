@@ -1,5 +1,5 @@
 [package]
-name = "gfx_scene"
+name = "gfx_scene_meta"
 version = "0.0.1"
 license = "Apache-2.0"
 keywords = ["graphics", "gamedev"]
@@ -8,13 +8,33 @@ authors = [
 ]
 
 [lib]
-name = "gfx_scene"
+name = "gfx_scene_meta"
 
-[dependencies.queue]
+[dependencies.draw_queue]
 path = "src/queue"
 
-[dependencies.draw]
-path = "src/draw"
+[dependencies.gfx_phase]
+path = "src/phase"
 
-[dependencies.scene]
+[dependencies.gfx_scene]
 path = "src/scene"
+
+[dev_dependencies.cgmath]
+git = "https://github.com/bjz/cgmath-rs"
+
+[dev_dependencies.gfx]
+git = "https://github.com/gfx-rs/gfx-rs"
+
+[dev_dependencies.gfx_macros]
+git = "https://github.com/gfx-rs/gfx-rs"
+plugin = true
+
+[dev_dependencies.gfx_device_gl]
+git = "https://github.com/gfx-rs/gfx_device_gl"
+
+[dev_dependencies]
+glfw = "*"
+
+[[example]]
+name = "cubes"
+path = "examples/cubes/main.rs"

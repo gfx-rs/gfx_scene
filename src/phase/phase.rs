@@ -1,4 +1,4 @@
-extern crate queue;
+extern crate draw_queue;
 
 use std::cmp::Ordering;
 use gfx;
@@ -54,7 +54,7 @@ pub struct Phase<
     pub name: String,
     technique: T,
     sort: Vec<Sort>,
-    queue: queue::Queue<Object<Z::Depth, T::Params>>,
+    queue: draw_queue::Queue<Object<Z::Depth, T::Params>>,
 }
 
 impl<
