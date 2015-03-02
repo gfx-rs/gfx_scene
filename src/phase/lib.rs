@@ -10,7 +10,8 @@ pub trait Material: PhantomFn<Self> {}
 
 pub type TechResult<'a, R, P> = (
     &'a gfx::ProgramHandle<R>,
-    &'a gfx::DrawState, P
+    &'a gfx::DrawState,
+    P
 );
 
 /// Technique is basically a `Fn(Entity) -> Option<TechResult>`
@@ -18,7 +19,7 @@ pub type TechResult<'a, R, P> = (
 /// to produce a shader program with associated data (state, parameters).
 pub trait Technique<R: gfx::Resources, M, Z> {
     type Params: gfx::shade::ShaderParam<Resources = R>;
-    fn does_apply(&self, &M, &gfx::Mesh<R>) -> bool;
+    fn does_apply(&self, &gfx::Mesh<R>, &M) -> bool;
     fn compile<'a>(&'a self, &gfx::Mesh<R>, &M, Z)
                    -> TechResult<'a, R, Self::Params>;
     fn fix_params(&self, &M, &Z, &mut Self::Params);

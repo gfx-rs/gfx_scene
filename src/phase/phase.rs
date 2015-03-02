@@ -58,6 +58,22 @@ pub struct Phase<
 }
 
 impl<
+    R: gfx::Resources,
+    M: ::Material,
+    Z: ToDepth,
+    T: ::Technique<R, M, Z>,
+> Phase<R, M, Z, T> {
+    pub fn new(name: &str, tech: T, sort: Sort) -> Phase<R, M, Z, T> {
+        Phase {
+            name: name.to_string(),
+            technique: tech,
+            sort: vec![sort],
+            queue: draw_queue::Queue::new(),
+        }
+    }
+}
+
+impl<
     D: gfx::Device,
     M: ::Material,
     Z: ToDepth + Copy,
@@ -65,7 +81,7 @@ impl<
     T: ::Technique<D::Resources, M, Z>,
 >AbstractPhase<D, E, Z> for Phase<D::Resources, M, Z, T> {
     fn does_apply(&self, entity: &E) -> bool {
-        self.technique.does_apply(entity.get_material(), entity.get_mesh().0)
+        self.technique.does_apply(entity.get_mesh().0, entity.get_material())
     }
 
     fn enqueue(&mut self, entity: &E, data: Z,
@@ -73,7 +89,7 @@ impl<
                -> Result<(), gfx::batch::BatchError> {
         // unable to use `self.does_apply` here
         debug_assert!(self.technique.does_apply(
-            entity.get_material(), entity.get_mesh().0
+            entity.get_mesh().0, entity.get_material()
         ));
         let depth = data.to_depth();
         // TODO: batch cache

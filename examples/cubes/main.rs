@@ -6,13 +6,12 @@ extern crate glfw;
 extern crate gfx;
 extern crate gfx_device_gl;
 extern crate gfx_phase;
-extern crate gfx_scene;
 
 use cgmath::FixedArray;
 use cgmath::{Matrix, Point3, Vector3};
 use cgmath::{Transform, AffineMatrix3};
 use gfx::{Device, DeviceExt, ToSlice};
-use gfx::batch::RefBatch;
+use gfx_phase::AbstractPhase;
 use glfw::Context;
 
 #[vertex_format]
@@ -52,6 +51,75 @@ static FRAGMENT_SRC: &'static [u8] = b"
         gl_FragColor = color;
     }
 ";
+
+// Defining the technique, material, and entity
+
+struct Technique<R: gfx::Resources> {
+    program: gfx::ProgramHandle<R>,
+    state_opaque: gfx::DrawState,
+    state_transparent: gfx::DrawState,
+}
+
+impl<D: gfx::Device> Technique<D::Resources> {
+    pub fn new(device: &mut D) -> Technique<D::Resources> {
+        let program = device.link_program(VERTEX_SRC, FRAGMENT_SRC).unwrap();
+        let opaque = gfx::DrawState::new().depth(gfx::state::Comparison::LessEqual, true);
+        let transparent = opaque.clone().blend(gfx::BlendPreset::Additive);
+        Technique {
+            program: program,
+            state_opaque: opaque,
+            state_transparent: transparent,
+        }
+    }
+}
+
+struct Material {
+    alpha: f32,
+}
+
+impl gfx_phase::Material for Material {}
+
+#[derive(Copy)]
+struct SpaceData(cgmath::Matrix4<f32>);
+
+impl gfx_phase::ToDepth for SpaceData {
+    type Depth = f32;
+    fn to_depth(&self) -> f32 {0.0}
+}
+
+impl<R: gfx::Resources> gfx_phase::Technique<R, Material, SpaceData>
+for Technique<R> {
+    type Params = Params<R>;
+
+    fn does_apply(&self, _mesh: &gfx::Mesh<R>, _mat: &Material) -> bool { true }
+
+    fn compile<'a>(&'a self, _mesh: &gfx::Mesh<R>, mat: &Material, space: SpaceData)
+                   -> gfx_phase::TechResult<'a, R, Params<R>> {
+        (   &self.program,
+            if mat.alpha < 1.0 {&self.state_transparent} else {&self.state_opaque},
+            Params {
+                transform: space.0.into_fixed(),
+                color: [0.4, 0.5, 0.6, mat.alpha],
+                _dummy: std::marker::PhantomData,
+        })
+    }
+
+    fn fix_params(&self, mat: &Material, space: &SpaceData, params: &mut Params<R>) {
+        params.transform = *space.0.as_fixed();
+        params.color[3] = mat.alpha;
+    }
+}
+
+struct Entity<R: gfx::Resources> {
+    mesh: gfx::Mesh<R>,
+    slice: gfx::Slice<R>,
+    material: Material,
+}
+
+impl<R: gfx::Resources> gfx_phase::Entity<R, Material> for Entity<R> {
+    fn get_material(&self) -> &Material { &self.material }
+    fn get_mesh(&self) -> (&gfx::Mesh<R>, gfx::Slice<R>) { (&self.mesh, self.slice) }
+}
 
 //----------------------------------------
 
@@ -121,12 +189,17 @@ fn main() {
         .create_buffer_static::<u8>(index_data)
         .to_slice(gfx::PrimitiveType::TriangleList);
 
-    let program = device.link_program(VERTEX_SRC, FRAGMENT_SRC).unwrap();
+    let entities = Entity {
+        mesh: mesh,
+        slice: slice,
+        material: Material { alpha: 0.5 },
+    };
 
-    let state = gfx::DrawState::new().depth(gfx::state::Comparison::LessEqual, true);
-
-    let batch: RefBatch<Params<_>> =
-        context.make_batch(&program, &mesh, slice, &state).unwrap();
+    let mut phase = gfx_phase::Phase::new(
+        "Main",
+        Technique::new(&mut device),
+        gfx_phase::Sort::DrawState
+    );
 
     let view: AffineMatrix3<f32> = Transform::look_at(
         &Point3::new(1.5f32, -5.0, 3.0),
@@ -135,12 +208,7 @@ fn main() {
     );
     let aspect = w as f32 / h as f32;
     let proj = cgmath::perspective(cgmath::deg(45.0f32), aspect, 1.0, 10.0);
-
-    let data = Params {
-        transform: proj.mul_m(&view.mat).into_fixed(),
-        color: [1.0; 4],
-        _dummy: std::marker::PhantomData,
-    };
+    let space_data = SpaceData(proj.mul_m(&view.mat));
 
     let clear_data = gfx::ClearData {
         color: [0.3, 0.3, 0.3, 1.0],
@@ -158,11 +226,16 @@ fn main() {
             }
         }
 
-        renderer.clear(clear_data, gfx::COLOR | gfx::DEPTH, &frame);
-        renderer.draw(&(&batch, &data, &context), &frame).unwrap();
-        device.submit(renderer.as_buffer());
         renderer.reset();
+        renderer.clear(clear_data, gfx::COLOR | gfx::DEPTH, &frame);
 
+        // somehow, rust doesn't see the namespace... why?
+        let p: &mut gfx_phase::AbstractPhase<gfx_device_gl::GlDevice, _, _> = &mut phase;
+
+        p.enqueue(&entity, space_data, &mut context).unwrap();
+        p.flush(&frame, &mut context, &mut renderer).unwrap();
+        
+        device.submit(renderer.as_buffer());
         window.swap_buffers();
     }
 }
