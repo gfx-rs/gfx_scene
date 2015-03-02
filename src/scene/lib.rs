@@ -2,12 +2,11 @@ extern crate draw;
 extern crate gfx;
 extern crate cgmath;
 
-use cgmath::{BaseFloat, Matrix3, Matrix4, Transform3};
-
 /// A class that manages spatial relations between objects
 pub trait World {
     type Scalar: cgmath::BaseFloat + 'static;
-    type Transform: cgmath::Transform3<Self::Scalar>;
+    type Rotation: cgmath::Rotation3<Self::Scalar>;
+    type Transform: cgmath::CompositeTransform3<Self::Scalar, Self::Rotation>;
     type NodePtr;
     type SkeletonPtr;
     type Iter: Iterator<Item = Self::Transform>;
@@ -48,15 +47,14 @@ pub struct Scene<R: gfx::Resources, M, W: World, P> {
 }
 
 pub struct SpaceData<S> {
-    depth: S,
-    vertex_mx: Matrix4<S>,
-    normal_mx: Matrix3<S>,
+    pub vertex_mx: cgmath::Matrix4<S>,
+    pub normal_mx: cgmath::Matrix3<S>,
 }
 
-impl<S: Copy + PartialOrd> draw::ToDepth for SpaceData<S> {
+impl<S: cgmath::BaseFloat> draw::ToDepth for SpaceData<S> {
     type Depth = S;
     fn to_depth(&self) -> S {
-        self.depth
+        self.vertex_mx.w.z / self.vertex_mx.w.w
     }
 }
 
@@ -75,7 +73,7 @@ impl<
             frame: &gfx::Frame<D::Resources>,
             renderer: &mut gfx::Renderer<D::CommandBuffer>)
             -> Result<(), draw::Error> {
-        use cgmath::{Matrix, ToMatrix4, Transform};
+        use cgmath::{Matrix, ToMatrix3, ToMatrix4, Transform, ToComponents};
         let cam_inverse = self.world.get_transform(&camera.node)
                                     .invert().unwrap();
         let projection = camera.projection.to_matrix4()
@@ -85,14 +83,13 @@ impl<
                  continue
             }
             let model = self.world.get_transform(&entity.node);
-            //let view = cam_inverse.concat(&model);
+            let view = cam_inverse.concat(&model);
             let mvp = projection.mul_m(&model.to_matrix4());
+            let (_, rot, _) = view.decompose();
             //TODO: cull `ent.bounds` here
             let data = SpaceData {
-                depth: mvp.w.z / mvp.w.w,
                 vertex_mx: mvp,
-                //normal_mx: view.rot.to_matrix3(), //TODO
-                normal_mx: Matrix3::identity(),
+                normal_mx: rot.to_matrix3(),
             };
             match phase.enqueue(entity, data, &mut self.context) {
                 Ok(()) => (),

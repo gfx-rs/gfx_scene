@@ -14,4 +14,5 @@ path = "../draw"
 git = "https://github.com/gfx-rs/gfx-rs"
 
 [dependencies.cgmath]
-git = "https://github.com/bjz/cgmath-rs"
+#git = "https://github.com/bjz/cgmath-rs"
+path = "../../../cgmath-rs"
