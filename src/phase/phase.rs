@@ -10,7 +10,7 @@ pub trait AbstractPhase<D: gfx::Device, E, Z> {
     fn does_apply(&self, &E) -> bool;
     /// Add an entity to the queue
     fn enqueue(&mut self, &E, Z, &mut gfx::batch::Context<D::Resources>)
-               -> Result<(), gfx::batch::BatchError>;
+               -> Result<(), gfx::batch::Error>;
     /// Flush the queue into a given renderer
     fn flush(&mut self, &gfx::Frame<D::Resources>,
              &gfx::batch::Context<D::Resources>,
@@ -86,7 +86,7 @@ impl<
 
     fn enqueue(&mut self, entity: &E, data: Z,
                context: &mut gfx::batch::Context<D::Resources>)
-               -> Result<(), gfx::batch::BatchError> {
+               -> Result<(), gfx::batch::Error> {
         // unable to use `self.does_apply` here
         debug_assert!(self.technique.does_apply(
             entity.get_mesh().0, entity.get_material()

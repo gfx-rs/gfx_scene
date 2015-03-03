@@ -7,9 +7,8 @@ extern crate gfx;
 extern crate gfx_device_gl;
 extern crate gfx_phase;
 
-use cgmath::FixedArray;
-use cgmath::{Matrix, Point3, Vector3};
-use cgmath::{Transform, AffineMatrix3};
+use cgmath::{Matrix, Matrix4, Point3, Vector3, vec3};
+use cgmath::{FixedArray, Transform, AffineMatrix3};
 use gfx::{Device, DeviceExt, ToSlice};
 use gfx_phase::AbstractPhase;
 use glfw::Context;
@@ -63,8 +62,9 @@ struct Technique<R: gfx::Resources> {
 impl<D: gfx::Device> Technique<D::Resources> {
     pub fn new(device: &mut D) -> Technique<D::Resources> {
         let program = device.link_program(VERTEX_SRC, FRAGMENT_SRC).unwrap();
-        let opaque = gfx::DrawState::new().depth(gfx::state::Comparison::LessEqual, true);
-        let transparent = opaque.clone().blend(gfx::BlendPreset::Additive);
+        //let opaque = gfx::DrawState::new().depth(gfx::state::Comparison::LessEqual, true);
+        let opaque = gfx::DrawState::new();
+        let transparent = opaque.clone().blend(gfx::BlendPreset::Alpha);
         Technique {
             program: program,
             state_opaque: opaque,
@@ -189,11 +189,11 @@ fn main() {
         .create_buffer_static::<u8>(index_data)
         .to_slice(gfx::PrimitiveType::TriangleList);
 
-    let entities = Entity {
-        mesh: mesh,
+    let entities: Vec<_> = (0..10).map(|i| Entity {
+        mesh: mesh.clone(),
         slice: slice,
-        material: Material { alpha: 0.5 },
-    };
+        material: Material { alpha: i as f32 / 10.0 },
+    }).collect();
 
     let mut phase = gfx_phase::Phase::new(
         "Main",
@@ -201,14 +201,14 @@ fn main() {
         gfx_phase::Sort::DrawState
     );
 
+    let aspect = w as f32 / h as f32;
+    let proj = cgmath::perspective(cgmath::deg(90.0f32), aspect, 1.0, 10.0);
     let view: AffineMatrix3<f32> = Transform::look_at(
         &Point3::new(1.5f32, -5.0, 3.0),
         &Point3::new(0f32, 0.0, 0.0),
         &Vector3::unit_z(),
     );
-    let aspect = w as f32 / h as f32;
-    let proj = cgmath::perspective(cgmath::deg(45.0f32), aspect, 1.0, 10.0);
-    let space_data = SpaceData(proj.mul_m(&view.mat));
+    let proj_view = proj.mul_m(&view.mat);
 
     let clear_data = gfx::ClearData {
         color: [0.3, 0.3, 0.3, 1.0],
@@ -232,7 +232,11 @@ fn main() {
         // somehow, rust doesn't see the namespace... why?
         let p: &mut gfx_phase::AbstractPhase<gfx_device_gl::GlDevice, _, _> = &mut phase;
 
-        p.enqueue(&entity, space_data, &mut context).unwrap();
+        for ent in entities.iter() {
+            let model = Matrix4::from_translation(&vec3(ent.material.alpha*16.0 - 8.0, 0.0, 0.0));
+            let space_data = SpaceData(proj_view.mul_m(&model));
+            p.enqueue(ent, space_data, &mut context).unwrap();
+        }
         p.flush(&frame, &mut context, &mut renderer).unwrap();
         
         device.submit(renderer.as_buffer());

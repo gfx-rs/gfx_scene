@@ -33,7 +33,7 @@ pub trait Entity<R, M> {
 
 #[derive(Debug)]
 pub enum Error {
-    Batch(gfx::batch::BatchError),
+    Batch(gfx::batch::Error),
     Flush(phase::FlushError),
 }
 
