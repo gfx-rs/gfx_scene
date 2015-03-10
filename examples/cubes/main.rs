@@ -141,8 +141,8 @@ fn main() {
 
     let vertex_data = [
         Vertex::new(-1, -1, -1),
-        Vertex::new(0, 1, -1),
-        Vertex::new(1, 0, -1),
+        Vertex::new(0, 2, -1),
+        Vertex::new(2, 0, -1),
         Vertex::new(0, 0, 2),
     ];
 
@@ -203,7 +203,11 @@ fn main() {
         let p: &mut gfx_phase::AbstractPhase<gfx_device_gl::GlDevice, _, _> = &mut phase;
 
         for ent in entities.iter() {
-            let model = Matrix4::from_translation(&vec3(ent.material.alpha*16.0 - 8.0, 0.0, 0.0));
+            use std::num::Float;
+            let angle = ent.material.alpha * std::f32::consts::PI * 2.0;
+            let model = Matrix4::from_translation(&vec3(
+                3.0 * angle.cos(), 0.0, 3.0 * angle.sin()
+            ));
             let space_data = SpaceData(proj_view.mul_m(&model));
             p.enqueue(ent, space_data, &mut context).unwrap();
         }
