@@ -32,8 +32,8 @@ plugin = true
 [dev_dependencies.gfx_device_gl]
 git = "https://github.com/gfx-rs/gfx_device_gl"
 
-[dev_dependencies]
-glfw = "*"
+[dev_dependencies.glutin]
+git = "https://github.com/tomaka/glutin"
 
 [[example]]
 name = "cubes"

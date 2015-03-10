@@ -9,9 +9,10 @@ pub use self::phase::{FlushError, AbstractPhase, Sort, ToDepth, Phase};
 pub trait Material: PhantomFn<Self> {}
 
 pub type TechResult<'a, R, P> = (
-    &'a gfx::ProgramHandle<R>,
-    &'a gfx::DrawState,
-    P
+    &'a gfx::ProgramHandle<R>,  // program
+    P,                          // parameters
+    Option<&'a gfx::Mesh<R>>,   // insancing
+    &'a gfx::DrawState,         // state
 );
 
 /// Technique is basically a `Fn(Entity) -> Option<TechResult>`
@@ -28,7 +29,7 @@ pub trait Technique<R: gfx::Resources, M, Z> {
 /// Abstract Entity
 pub trait Entity<R, M> {
     fn get_material(&self) -> &M;
-    fn get_mesh(&self) -> (&gfx::Mesh<R>, gfx::Slice<R>);
+    fn get_mesh(&self) -> (&gfx::Mesh<R>, &gfx::Slice<R>);
 }
 
 #[derive(Debug)]
@@ -44,5 +45,5 @@ pub trait AbstractScene<D: gfx::Device> {
 
     fn draw<H: phase::AbstractPhase<D, Self::Entity, Self::SpaceData> + ?Sized>(
             &mut self, &mut H, &Self::Camera, &gfx::Frame<D::Resources>,
-            &mut gfx::Renderer<D::CommandBuffer>) -> Result<(), Error>;
+            &mut gfx::Renderer<D::Resources, D::CommandBuffer>) -> Result<(), Error>;
 }

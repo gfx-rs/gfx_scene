@@ -14,12 +14,12 @@ pub trait AbstractPhase<D: gfx::Device, E, Z> {
     /// Flush the queue into a given renderer
     fn flush(&mut self, &gfx::Frame<D::Resources>,
              &gfx::batch::Context<D::Resources>,
-             &mut gfx::Renderer<D::CommandBuffer>) -> Result<(), FlushError>;
+             &mut gfx::Renderer<D::Resources, D::CommandBuffer>)
+             -> Result<(), FlushError>;
 }
 
 struct Object<S, P: gfx::shade::ShaderParam> {
     batch: gfx::batch::RefBatch<P>,
-    parameters: P,
     depth: S,
 }
 
@@ -93,16 +93,30 @@ impl<
         ));
         let depth = data.to_depth();
         // TODO: batch cache
-        let (mesh, slice) = entity.get_mesh();
-        let (program, state, mut param) = self.technique.compile(
-            mesh, entity.get_material(), data);
-        match context.make_batch(program, mesh, slice, state) {
-            Ok(b) => {
+        let (orig_mesh, slice) = entity.get_mesh();
+        let (program, param, inst_mesh, state) = self.technique.compile(
+            orig_mesh, entity.get_material(), data);
+        let batch_result = match inst_mesh {
+            Some(m) => {
+                let mesh = &gfx::Mesh {
+                    num_vertices: orig_mesh.num_vertices,
+                    attributes: orig_mesh.attributes.iter()
+                        .chain(m.attributes.iter()).
+                        map(|a| a.clone()).collect(),
+                };
+                context.make_batch(program, param, mesh, slice.clone(), state)
+            },
+            None => {
+                context.make_batch(program, param, orig_mesh, slice.clone(), state)
+            },
+        };
+        match batch_result {
+            Ok(mut b) => {
                 //TODO: only if cached
-                self.technique.fix_params(entity.get_material(), &data, &mut param);
+                self.technique.fix_params(entity.get_material(),
+                                          &data, &mut b.params);
                 let object = Object {
                     batch: b,
-                    parameters: param,
                     depth: depth,
                 };
                 self.queue.objects.push(object);
@@ -114,7 +128,7 @@ impl<
 
     fn flush(&mut self, frame: &gfx::Frame<D::Resources>,
              context: &gfx::batch::Context<D::Resources>,
-             renderer: &mut gfx::Renderer<D::CommandBuffer>)
+             renderer: &mut gfx::Renderer<D::Resources, D::CommandBuffer>)
              -> Result<(), FlushError> {
         // sort the queue
         match self.sort.first() {
@@ -132,7 +146,7 @@ impl<
         }
         // call the draws
         for o in self.queue.iter() {
-            match renderer.draw(&(&o.batch, &o.parameters, context), frame) {
+            match renderer.draw(&(&o.batch, context), frame) {
                 Ok(_) => (),
                 e => return e,
             }
