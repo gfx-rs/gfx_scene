@@ -93,10 +93,24 @@ impl<
         ));
         let depth = data.to_depth();
         // TODO: batch cache
-        let (mesh, slice) = entity.get_mesh();
-        let (program, state, param) = self.technique.compile(
-            mesh, entity.get_material(), data);
-        match context.make_batch(program, param, mesh, slice.clone(), state) {
+        let (orig_mesh, slice) = entity.get_mesh();
+        let (program, param, inst_mesh, state) = self.technique.compile(
+            orig_mesh, entity.get_material(), data);
+        let batch_result = match inst_mesh {
+            Some(m) => {
+                let mesh = &gfx::Mesh {
+                    num_vertices: orig_mesh.num_vertices,
+                    attributes: orig_mesh.attributes.iter()
+                        .chain(m.attributes.iter()).
+                        map(|a| a.clone()).collect(),
+                };
+                context.make_batch(program, param, mesh, slice.clone(), state)
+            },
+            None => {
+                context.make_batch(program, param, orig_mesh, slice.clone(), state)
+            },
+        };
+        match batch_result {
             Ok(mut b) => {
                 //TODO: only if cached
                 self.technique.fix_params(entity.get_material(),

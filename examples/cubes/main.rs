@@ -95,12 +95,14 @@ for Technique<R> {
     fn compile<'a>(&'a self, _mesh: &gfx::Mesh<R>, mat: &Material, space: SpaceData)
                    -> gfx_phase::TechResult<'a, R, Params<R>> {
         (   &self.program,
-            if mat.alpha < 1.0 {&self.state_transparent} else {&self.state_opaque},
             Params {
                 transform: space.0.into_fixed(),
                 color: [0.4, 0.5, 0.6, mat.alpha],
                 _dummy: std::marker::PhantomData,
-        })
+            },
+            None,
+            if mat.alpha < 1.0 {&self.state_transparent} else {&self.state_opaque},
+        )
     }
 
     fn fix_params(&self, mat: &Material, space: &SpaceData, params: &mut Params<R>) {
