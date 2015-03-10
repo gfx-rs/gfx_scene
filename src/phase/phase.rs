@@ -19,7 +19,9 @@ pub trait AbstractPhase<D: gfx::Device, E, Z> {
 }
 
 struct Object<S, P: gfx::shade::ShaderParam> {
-    batch: gfx::batch::RefBatch<P>,
+    batch: gfx::batch::CoreBatch<P>,
+    params: P,
+    slice: gfx::Slice<P::Resources>,
     depth: S,
 }
 
@@ -94,7 +96,7 @@ impl<
         let depth = data.to_depth();
         // TODO: batch cache
         let (orig_mesh, slice) = entity.get_mesh();
-        let (program, param, inst_mesh, state) = self.technique.compile(
+        let (program, mut params, inst_mesh, state) = self.technique.compile(
             orig_mesh, entity.get_material(), data);
         let batch_result = match inst_mesh {
             Some(m) => {
@@ -104,19 +106,21 @@ impl<
                         .chain(m.attributes.iter()).
                         map(|a| a.clone()).collect(),
                 };
-                context.make_batch(program, param, mesh, slice.clone(), state)
+                context.make_core(program, mesh, state)
             },
             None => {
-                context.make_batch(program, param, orig_mesh, slice.clone(), state)
+                context.make_core(program, orig_mesh, state)
             },
         };
         match batch_result {
-            Ok(mut b) => {
+            Ok(b) => {
                 //TODO: only if cached
                 self.technique.fix_params(entity.get_material(),
-                                          &data, &mut b.params);
+                                          &data, &mut params);
                 let object = Object {
                     batch: b,
+                    params: params,
+                    slice: slice.clone(),
                     depth: depth,
                 };
                 self.queue.objects.push(object);
@@ -146,7 +150,7 @@ impl<
         }
         // call the draws
         for o in self.queue.iter() {
-            match renderer.draw(&(&o.batch, context), frame) {
+            match renderer.draw(&context.bind(&o.batch, &o.slice, &o.params), frame) {
                 Ok(_) => (),
                 e => return e,
             }
