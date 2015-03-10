@@ -2,16 +2,15 @@
 #![plugin(gfx_macros)]
 
 extern crate cgmath;
-extern crate glfw;
+extern crate glutin;
 extern crate gfx;
 extern crate gfx_device_gl;
 extern crate gfx_phase;
 
 use cgmath::{Matrix, Matrix4, Point3, Vector3, vec3};
 use cgmath::{FixedArray, Transform, AffineMatrix3};
-use gfx::{Device, DeviceExt, ToSlice};
+use gfx::traits::*;
 use gfx_phase::AbstractPhase;
-use glfw::Context;
 
 #[vertex_format]
 #[derive(Copy)]
@@ -59,9 +58,9 @@ struct Technique<R: gfx::Resources> {
     state_transparent: gfx::DrawState,
 }
 
-impl<D: gfx::Device> Technique<D::Resources> {
-    pub fn new(device: &mut D) -> Technique<D::Resources> {
-        let program = device.link_program(VERTEX_SRC, FRAGMENT_SRC).unwrap();
+impl<R: gfx::Resources> Technique<R> {
+    pub fn new<F: Factory<R>>(factory: &mut F) -> Technique<R> {
+        let program = factory.link_program(VERTEX_SRC, FRAGMENT_SRC).unwrap();
         //let opaque = gfx::DrawState::new().depth(gfx::state::Comparison::LessEqual, true);
         let opaque = gfx::DrawState::new();
         let transparent = opaque.clone().blend(gfx::BlendPreset::Alpha);
@@ -118,23 +117,16 @@ struct Entity<R: gfx::Resources> {
 
 impl<R: gfx::Resources> gfx_phase::Entity<R, Material> for Entity<R> {
     fn get_material(&self) -> &Material { &self.material }
-    fn get_mesh(&self) -> (&gfx::Mesh<R>, gfx::Slice<R>) { (&self.mesh, self.slice) }
+    fn get_mesh(&self) -> (&gfx::Mesh<R>, &gfx::Slice<R>) { (&self.mesh, &self.slice) }
 }
 
 //----------------------------------------
 
 fn main() {
-    let mut glfw = glfw::init(glfw::FAIL_ON_ERRORS).unwrap();
-
-    let (mut window, events) = glfw
-        .create_window(640, 480, "Cubes example", glfw::WindowMode::Windowed)
-        .expect("Failed to create GLFW window.");
-
-    window.make_current();
-    glfw.set_error_callback(glfw::FAIL_ON_ERRORS);
-    window.set_key_polling(true);
-
-    let (w, h) = window.get_framebuffer_size();
+    let window = glutin::Window::new().unwrap();
+    window.set_title("glutin initialization example");
+    unsafe { window.make_current() };
+    let (w, h) = window.get_inner_size().unwrap();
     let frame = gfx::Frame::new(w as u16, h as u16);
 
     let mut device = gfx_device_gl::GlDevice::new(|s| window.get_proc_address(s));
@@ -191,7 +183,7 @@ fn main() {
 
     let entities: Vec<_> = (0..10).map(|i| Entity {
         mesh: mesh.clone(),
-        slice: slice,
+        slice: slice.clone(),
         material: Material { alpha: i as f32 / 10.0 },
     }).collect();
 
@@ -216,16 +208,16 @@ fn main() {
         stencil: 0,
     };
 
-    while !window.should_close() {
-        glfw.poll_events();
-        for (_, event) in glfw::flush_messages(&events) {
+    'main: loop {
+        // quit when Esc is pressed.
+        for event in window.poll_events() {
             match event {
-                glfw::WindowEvent::Key(glfw::Key::Escape, _, glfw::Action::Press, _) =>
-                    window.set_should_close(true),
+                glutin::Event::KeyboardInput(_, _, Some(glutin::VirtualKeyCode::Escape)) => break 'main,
+                glutin::Event::Closed => break 'main,
                 _ => {},
             }
         }
-
+        
         renderer.reset();
         renderer.clear(clear_data, gfx::COLOR | gfx::DEPTH, &frame);
 
@@ -241,5 +233,6 @@ fn main() {
         
         device.submit(renderer.as_buffer());
         window.swap_buffers();
+        device.after_frame();
     }
 }
