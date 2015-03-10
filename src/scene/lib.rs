@@ -28,8 +28,8 @@ impl<R: gfx::Resources, M, W: World> phase::Entity<R, M> for Entity<R, M, W> {
     fn get_material(&self) -> &M {
         &self.material
     }
-    fn get_mesh(&self) -> (&gfx::Mesh<R>, gfx::Slice<R>) {
-        (&self.mesh, self.slice)
+    fn get_mesh(&self) -> (&gfx::Mesh<R>, &gfx::Slice<R>) {
+        (&self.mesh, &self.slice)
     }
 }
 
@@ -71,7 +71,7 @@ impl<
     fn draw<H: phase::AbstractPhase<D, Entity<D::Resources, M, W>, SpaceData<W::Scalar>> + ?Sized>(
             &mut self, phase: &mut H, camera: &Camera<P, W::NodePtr>,
             frame: &gfx::Frame<D::Resources>,
-            renderer: &mut gfx::Renderer<D::CommandBuffer>)
+            renderer: &mut gfx::Renderer<D::Resources, D::CommandBuffer>)
             -> Result<(), phase::Error> {
         use cgmath::{Matrix, ToMatrix3, ToMatrix4, Transform, ToComponents};
         let cam_inverse = self.world.get_transform(&camera.node)
@@ -106,7 +106,7 @@ impl<
 pub struct PhaseHarness<D: gfx::Device, C, P> {
     pub scene: C,
     pub phases: Vec<P>,
-    pub renderer: gfx::Renderer<D::CommandBuffer>,
+    pub renderer: gfx::Renderer<D::Resources, D::CommandBuffer>,
 }
 
 impl<
