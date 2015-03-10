@@ -36,5 +36,5 @@ git = "https://github.com/gfx-rs/gfx_device_gl"
 git = "https://github.com/tomaka/glutin"
 
 [[example]]
-name = "cubes"
-path = "examples/cubes/main.rs"
+name = "alpha"
+path = "examples/alpha/main.rs"
