@@ -18,10 +18,14 @@ struct Vertex {
     #[as_float]
     #[name = "a_Pos"]
     pos: [i8; 3],
+}
 
-    #[as_float]
-    #[name = "a_TexCoord"]
-    tex_coord: [u8; 2],
+impl Vertex {
+    fn new(x: i8, y: i8, z: i8) -> Vertex {
+        Vertex {
+            pos: [x, y, z],
+        }
+    }
 }
 
 // The shader_param attribute makes sure the following struct can be used to
@@ -136,51 +140,23 @@ fn main() {
     let mut context = gfx::batch::Context::new();
 
     let vertex_data = [
-        // top (0, 0, 1)
-        Vertex { pos: [-1, -1,  1], tex_coord: [0, 0] },
-        Vertex { pos: [ 1, -1,  1], tex_coord: [1, 0] },
-        Vertex { pos: [ 1,  1,  1], tex_coord: [1, 1] },
-        Vertex { pos: [-1,  1,  1], tex_coord: [0, 1] },
-        // bottom (0, 0, -1)
-        Vertex { pos: [-1,  1, -1], tex_coord: [1, 0] },
-        Vertex { pos: [ 1,  1, -1], tex_coord: [0, 0] },
-        Vertex { pos: [ 1, -1, -1], tex_coord: [0, 1] },
-        Vertex { pos: [-1, -1, -1], tex_coord: [1, 1] },
-        // right (1, 0, 0)
-        Vertex { pos: [ 1, -1, -1], tex_coord: [0, 0] },
-        Vertex { pos: [ 1,  1, -1], tex_coord: [1, 0] },
-        Vertex { pos: [ 1,  1,  1], tex_coord: [1, 1] },
-        Vertex { pos: [ 1, -1,  1], tex_coord: [0, 1] },
-        // left (-1, 0, 0)
-        Vertex { pos: [-1, -1,  1], tex_coord: [1, 0] },
-        Vertex { pos: [-1,  1,  1], tex_coord: [0, 0] },
-        Vertex { pos: [-1,  1, -1], tex_coord: [0, 1] },
-        Vertex { pos: [-1, -1, -1], tex_coord: [1, 1] },
-        // front (0, 1, 0)
-        Vertex { pos: [ 1,  1, -1], tex_coord: [1, 0] },
-        Vertex { pos: [-1,  1, -1], tex_coord: [0, 0] },
-        Vertex { pos: [-1,  1,  1], tex_coord: [0, 1] },
-        Vertex { pos: [ 1,  1,  1], tex_coord: [1, 1] },
-        // back (0, -1, 0)
-        Vertex { pos: [ 1, -1,  1], tex_coord: [0, 0] },
-        Vertex { pos: [-1, -1,  1], tex_coord: [1, 0] },
-        Vertex { pos: [-1, -1, -1], tex_coord: [1, 1] },
-        Vertex { pos: [ 1, -1, -1], tex_coord: [0, 1] },
+        Vertex::new(-1, -1, -1),
+        Vertex::new(0, 1, -1),
+        Vertex::new(1, 0, -1),
+        Vertex::new(0, 0, 2),
     ];
 
     let mesh = device.create_mesh(&vertex_data);
 
     let index_data: &[u8] = &[
-         0,  1,  2,  2,  3,  0, // top
-         4,  5,  6,  6,  7,  4, // bottom
-         8,  9, 10, 10, 11,  8, // right
-        12, 13, 14, 14, 15, 12, // left
-        16, 17, 18, 18, 19, 16, // front
-        20, 21, 22, 22, 23, 20, // back
+        0, 1, 2,
+        0, 3, 1,
+        1, 3, 2,
+        2, 3, 0,
     ];
 
     let slice = device
-        .create_buffer_static::<u8>(index_data)
+        .create_buffer_static(index_data)
         .to_slice(gfx::PrimitiveType::TriangleList);
 
     let entities: Vec<_> = (0..10).map(|i| Entity {
