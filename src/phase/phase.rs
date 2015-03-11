@@ -6,9 +6,11 @@ use mem::Memory;
 
 pub type FlushError = gfx::DrawError<gfx::batch::OutOfBounds>;
 
+/// An abstract phase. Needs to be object-safe as phases should be
+/// allowed to be stored in boxed form in containers.
 pub trait AbstractPhase<D: gfx::Device, E, Z> {
     /// Check if it makes sense to draw this entity
-    fn does_apply(&self, &E) -> bool;
+    fn test(&self, &E) -> bool;
     /// Add an entity to the queue
     fn enqueue(&mut self, &E, Z, &mut gfx::batch::Context<D::Resources>)
                -> Result<(), gfx::batch::Error>;
@@ -66,11 +68,11 @@ pub struct Phase<
     M: ::Material,
     Z: ToDepth,
     T: ::Technique<R, M, Z>,
-    O,
+    Y,
 >{
     pub name: String,
     pub technique: T,
-    memory: O,
+    memory: Y,
     pub sort: Vec<Sort>,
     queue: draw_queue::Queue<Object<Z::Depth, T::Params>>,
 }
@@ -98,25 +100,26 @@ impl<
     Z: ToDepth + Copy,
     E: ::Entity<D::Resources, M>,
     T: ::Technique<D::Resources, M, Z>,
-    O: Memory<D::Resources, Object<Z::Depth, T::Params>>,
->AbstractPhase<D, E, Z> for Phase<D::Resources, M, Z, T, O> where
+    Y: Memory<T::Essense, Object<Z::Depth, T::Params>>,
+>AbstractPhase<D, E, Z> for Phase<D::Resources, M, Z, T, Y> where
     Z::Depth: Copy,
     T::Params: Clone,
     <T::Params as gfx::shade::ShaderParam>::Link: Copy,    
 {
-    fn does_apply(&self, entity: &E) -> bool {
-        self.technique.does_apply(entity.get_mesh().0, entity.get_material())
+    fn test(&self, entity: &E) -> bool {
+        self.technique.test(entity.get_mesh().0, entity.get_material())
+                      .is_some()
     }
 
     fn enqueue(&mut self, entity: &E, data: Z,
                context: &mut gfx::batch::Context<D::Resources>)
                -> Result<(), gfx::batch::Error> {
-        debug_assert!(self.technique.does_apply(
-            entity.get_mesh().0, entity.get_material()
-        ));
+        let essense = self.technique.test(
+            entity.get_mesh().0, entity.get_material())
+            .unwrap(); //TODO?
         let (orig_mesh, slice) = entity.get_mesh();
         // Try recalling from memory
-        match self.memory.recall(orig_mesh, entity.get_material()) {
+        match self.memory.lookup(essense) {
             Some(Ok(mut o)) => {
                 o.slice = slice.clone();
                 self.technique.fix_params(entity.get_material(),
@@ -129,8 +132,13 @@ impl<
         }
         // Compile with the technique
         let depth = data.to_depth();
-        let (program, mut params, inst_mesh, state) = self.technique.compile(
-            orig_mesh, entity.get_material(), data);
+        let (program, params, inst_mesh, state) =
+            self.technique.compile(essense, data);
+        // this would be useful, but requires a ton of new constraints on Params
+        //debug_assert_eq!({
+        //    let mut p2 = params;
+        //    self.technique.fix_params(entity.get_material(), &data, &mut p2);
+        //    p2}, params);
         let mut temp_mesh = gfx::Mesh::new(orig_mesh.num_vertices);
         let mesh = match inst_mesh {
             Some(m) => {
@@ -149,8 +157,7 @@ impl<
                                 depth: depth,
                             });
         // Remember and return
-        self.memory.store(orig_mesh, entity.get_material(),
-                          object.clone());
+        self.memory.store(essense, object.clone());
         match object {
             Ok(o) => Ok(self.queue.objects.push(o)),
             Err(e) => Err(e),
