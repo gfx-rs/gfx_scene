@@ -93,20 +93,26 @@ impl gfx_phase::ToDepth for SpaceData {
 
 impl<R: gfx::Resources> gfx_phase::Technique<R, Material, SpaceData>
 for Technique<R> {
+    // Would be nice to have Hash implemented for f32 here...
+    type Essense = u8; //alpha, normalized
     type Params = Params<R>;
 
-    fn does_apply(&self, _mesh: &gfx::Mesh<R>, _mat: &Material) -> bool { true }
+    fn test(&self, _mesh: &gfx::Mesh<R>, mat: &Material) -> Option<u8> {
+        use std::num::Float;
+        Some((mat.alpha.max(0.0).min(1.0) * 255.9) as u8)
+    }
 
-    fn compile<'a>(&'a self, _mesh: &gfx::Mesh<R>, mat: &Material, space: SpaceData)
+    fn compile<'a>(&'a self, essense: u8, space: SpaceData)
                    -> gfx_phase::TechResult<'a, R, Params<R>> {
+        let alpha = essense as f32 / 255.0;
         (   &self.program,
             Params {
                 transform: space.0.into_fixed(),
-                color: [0.4, 0.5, 0.6, mat.alpha],
+                color: [0.4, 0.5, 0.6, alpha],
                 _dummy: std::marker::PhantomData,
             },
             None,
-            if mat.alpha < 1.0 {&self.state_transparent} else {&self.state_opaque},
+            if alpha < 1.0 {&self.state_transparent} else {&self.state_opaque},
         )
     }
 
