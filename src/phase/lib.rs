@@ -1,5 +1,6 @@
 extern crate gfx;
 
+mod mem;
 mod phase;
 
 use std::marker::PhantomFn;

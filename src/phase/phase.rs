@@ -2,6 +2,7 @@ extern crate draw_queue;
 
 use std::cmp::Ordering;
 use gfx;
+use mem::Memory;
 
 pub type FlushError = gfx::DrawError<gfx::batch::OutOfBounds>;
 
@@ -23,6 +24,19 @@ struct Object<S, P: gfx::shade::ShaderParam> {
     params: P,
     slice: gfx::Slice<P::Resources>,
     depth: S,
+}
+
+impl<S: Copy, P: gfx::shade::ShaderParam + Clone> Clone
+for Object<S, P> where P::Link: Copy
+{
+    fn clone(&self) -> Object<S, P> {
+        Object {
+            batch: self.batch,
+            params: self.params.clone(),
+            slice: self.slice.clone(),
+            depth: self.depth,
+        }
+    }
 }
 
 impl<S: PartialOrd, P: gfx::shade::ShaderParam> Object<S, P> {
@@ -52,10 +66,12 @@ pub struct Phase<
     M: ::Material,
     Z: ToDepth,
     T: ::Technique<R, M, Z>,
+    O,
 >{
     pub name: String,
-    technique: T,
-    sort: Vec<Sort>,
+    pub technique: T,
+    memory: O,
+    pub sort: Vec<Sort>,
     queue: draw_queue::Queue<Object<Z::Depth, T::Params>>,
 }
 
@@ -64,12 +80,13 @@ impl<
     M: ::Material,
     Z: ToDepth,
     T: ::Technique<R, M, Z>,
-> Phase<R, M, Z, T> {
-    pub fn new(name: &str, tech: T, sort: Sort) -> Phase<R, M, Z, T> {
+> Phase<R, M, Z, T, ()> {
+    pub fn new(name: &str, tech: T) -> Phase<R, M, Z, T, ()> {
         Phase {
             name: name.to_string(),
             technique: tech,
-            sort: vec![sort],
+            memory: (),
+            sort: Vec::new(),
             queue: draw_queue::Queue::new(),
         }
     }
@@ -81,7 +98,12 @@ impl<
     Z: ToDepth + Copy,
     E: ::Entity<D::Resources, M>,
     T: ::Technique<D::Resources, M, Z>,
->AbstractPhase<D, E, Z> for Phase<D::Resources, M, Z, T> {
+    O: Memory<D::Resources, Object<Z::Depth, T::Params>>,
+>AbstractPhase<D, E, Z> for Phase<D::Resources, M, Z, T, O> where
+    Z::Depth: Copy,
+    T::Params: Clone,
+    <T::Params as gfx::shade::ShaderParam>::Link: Copy,    
+{
     fn does_apply(&self, entity: &E) -> bool {
         self.technique.does_apply(entity.get_mesh().0, entity.get_material())
     }
@@ -89,38 +111,48 @@ impl<
     fn enqueue(&mut self, entity: &E, data: Z,
                context: &mut gfx::batch::Context<D::Resources>)
                -> Result<(), gfx::batch::Error> {
-        // unable to use `self.does_apply` here
         debug_assert!(self.technique.does_apply(
             entity.get_mesh().0, entity.get_material()
         ));
-        let depth = data.to_depth();
-        // TODO: batch cache
         let (orig_mesh, slice) = entity.get_mesh();
+        // Try recalling from memory
+        match self.memory.recall(orig_mesh, entity.get_material()) {
+            Some(Ok(mut o)) => {
+                o.slice = slice.clone();
+                self.technique.fix_params(entity.get_material(),
+                                          &data, &mut o.params);
+                self.queue.objects.push(o);
+                return Ok(())
+            },
+            Some(Err(e)) => return Err(e),
+            None => ()
+        }
+        // Compile with the technique
+        let depth = data.to_depth();
         let (program, mut params, inst_mesh, state) = self.technique.compile(
             orig_mesh, entity.get_material(), data);
         let mut temp_mesh = gfx::Mesh::new(orig_mesh.num_vertices);
         let mesh = match inst_mesh {
             Some(m) => {
                 temp_mesh.attributes.extend(orig_mesh.attributes.iter()
-                        .chain(m.attributes.iter()).map(|a| a.clone()));
+                    .chain(m.attributes.iter()).map(|a| a.clone()));
                 &temp_mesh
             },
             None => orig_mesh,
         };
-        match context.make_core(program, mesh, state) {
-            Ok(b) => {
-                //TODO: only if cached
-                self.technique.fix_params(entity.get_material(),
-                                          &data, &mut params);
-                let object = Object {
-                    batch: b,
-                    params: params,
-                    slice: slice.clone(),
-                    depth: depth,
-                };
-                self.queue.objects.push(object);
-                Ok(())
-            },
+        // Create queue object
+        let object = context.make_core(program, mesh, state)
+                            .map(|b| Object {
+                                batch: b,
+                                params: params,
+                                slice: slice.clone(),
+                                depth: depth,
+                            });
+        // Remember and return
+        self.memory.store(orig_mesh, entity.get_material(),
+                          object.clone());
+        match object {
+            Ok(o) => Ok(self.queue.objects.push(o)),
             Err(e) => Err(e),
         }
     }

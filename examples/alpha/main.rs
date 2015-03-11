@@ -31,6 +31,7 @@ impl Vertex {
 // The shader_param attribute makes sure the following struct can be used to
 // pass parameters to a shader.
 #[shader_param]
+#[derive(Clone)]
 struct Params<R: gfx::Resources> {
     transform: [[f32; 4]; 4],
     color: [f32; 4],
@@ -168,8 +169,8 @@ fn main() {
     let mut phase = gfx_phase::Phase::new(
         "Main",
         Technique::new(&mut device),
-        gfx_phase::Sort::DrawState
     );
+    phase.sort.push(gfx_phase::Sort::DrawState);
 
     let aspect = w as f32 / h as f32;
     let proj = cgmath::perspective(cgmath::deg(90.0f32), aspect, 1.0, 10.0);
