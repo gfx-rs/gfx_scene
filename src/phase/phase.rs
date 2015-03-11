@@ -1,8 +1,9 @@
 extern crate draw_queue;
 
 use std::cmp::Ordering;
+use std::collections::HashMap;
 use gfx;
-use mem::Memory;
+use mem;
 
 pub type FlushError = gfx::DrawError<gfx::batch::OutOfBounds>;
 
@@ -94,13 +95,37 @@ impl<
     }
 }
 
+pub type CacheMap<
+    R: gfx::Resources,
+    M: ::Material,
+    Z: ToDepth,
+    T: ::Technique<R, M, Z>,
+> = HashMap<T::Essense, mem::MemResult<Object<Z::Depth, T::Params>>>;
+
+impl<
+    R: gfx::Resources,
+    M: ::Material,
+    Z: ToDepth,
+    T: ::Technique<R, M, Z>,
+> Phase<R, M, Z, T, CacheMap<R, M, Z, T>> {
+    pub fn new_cached(name: &str, tech: T) -> Phase<R, M, Z, T, CacheMap<R, M, Z, T>> {
+        Phase {
+            name: name.to_string(),
+            technique: tech,
+            memory: HashMap::new(),
+            sort: Vec::new(),
+            queue: draw_queue::Queue::new(),
+        }
+    }
+}
+
 impl<
     D: gfx::Device,
     M: ::Material,
     Z: ToDepth + Copy,
     E: ::Entity<D::Resources, M>,
     T: ::Technique<D::Resources, M, Z>,
-    Y: Memory<T::Essense, Object<Z::Depth, T::Params>>,
+    Y: mem::Memory<T::Essense, Object<Z::Depth, T::Params>>,
 >AbstractPhase<D, E, Z> for Phase<D::Resources, M, Z, T, Y> where
     Z::Depth: Copy,
     T::Params: Clone,

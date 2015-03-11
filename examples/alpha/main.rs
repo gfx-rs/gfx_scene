@@ -172,7 +172,7 @@ fn main() {
         material: Material { alpha: i as f32 / 10.0 },
     }).collect();
 
-    let mut phase = gfx_phase::Phase::new(
+    let mut phase = gfx_phase::Phase::new_cached(
         "Main",
         Technique::new(&mut device),
     );
