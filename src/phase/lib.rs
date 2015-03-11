@@ -31,19 +31,3 @@ pub trait Entity<R, M> {
     fn get_material(&self) -> &M;
     fn get_mesh(&self) -> (&gfx::Mesh<R>, &gfx::Slice<R>);
 }
-
-#[derive(Debug)]
-pub enum Error {
-    Batch(gfx::batch::Error),
-    Flush(phase::FlushError),
-}
-
-pub trait AbstractScene<D: gfx::Device> {
-    type SpaceData;
-    type Entity;
-    type Camera;
-
-    fn draw<H: phase::AbstractPhase<D, Self::Entity, Self::SpaceData> + ?Sized>(
-            &mut self, &mut H, &Self::Camera, &gfx::Frame<D::Resources>,
-            &mut gfx::Renderer<D::Resources, D::CommandBuffer>) -> Result<(), Error>;
-}

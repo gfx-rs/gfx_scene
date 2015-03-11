@@ -2,6 +2,23 @@ extern crate "gfx_phase" as phase;
 extern crate gfx;
 extern crate cgmath;
 
+#[derive(Debug)]
+pub enum Error {
+    Batch(gfx::batch::Error),
+    Flush(phase::FlushError),
+}
+
+/// Abstract scene that can be drawn into something
+pub trait AbstractScene<D: gfx::Device> {
+    type SpaceData;
+    type Entity;
+    type Camera;
+
+    fn draw<H: phase::AbstractPhase<D, Self::Entity, Self::SpaceData> + ?Sized>(
+            &mut self, &mut H, &Self::Camera, &gfx::Frame<D::Resources>,
+            &mut gfx::Renderer<D::Resources, D::CommandBuffer>) -> Result<(), Error>;
+}
+
 /// A class that manages spatial relations between objects
 pub trait World {
     type Scalar: cgmath::BaseFloat + 'static;
@@ -63,7 +80,7 @@ impl<
     M: phase::Material,
     W: World,
     P: cgmath::Projection<W::Scalar>,
-> phase::AbstractScene<D> for Scene<D::Resources, M, W, P> {
+> AbstractScene<D> for Scene<D::Resources, M, W, P> {
     type SpaceData = SpaceData<W::Scalar>;
     type Entity = Entity<D::Resources, M, W>;
     type Camera = Camera<P, W::NodePtr>;
@@ -72,7 +89,7 @@ impl<
             &mut self, phase: &mut H, camera: &Camera<P, W::NodePtr>,
             frame: &gfx::Frame<D::Resources>,
             renderer: &mut gfx::Renderer<D::Resources, D::CommandBuffer>)
-            -> Result<(), phase::Error> {
+            -> Result<(), Error> {
         use cgmath::{Matrix, ToMatrix3, ToMatrix4, Transform, ToComponents};
         let cam_inverse = self.world.get_transform(&camera.node)
                                     .invert().unwrap();
@@ -93,11 +110,11 @@ impl<
             };
             match phase.enqueue(entity, data, &mut self.context) {
                 Ok(()) => (),
-                Err(e) => return Err(phase::Error::Batch(e)),
+                Err(e) => return Err(Error::Batch(e)),
             }
         }
         phase.flush(frame, &self.context, renderer)
-             .map_err(|e| phase::Error::Flush(e))
+             .map_err(|e| Error::Flush(e))
     }
 }
 
@@ -111,11 +128,11 @@ pub struct PhaseHarness<D: gfx::Device, C, P> {
 
 impl<
     D: gfx::Device,
-    C: phase::AbstractScene<D>,
+    C: AbstractScene<D>,
     H: phase::AbstractPhase<D, C::Entity, C::SpaceData>
 > PhaseHarness<D, C, H> {
     pub fn draw(&mut self, camera: &C::Camera, frame: &gfx::Frame<D::Resources>)
-                -> Result<(), phase::Error> {
+                -> Result<(), Error> {
         self.renderer.reset();
         for phase in self.phases.iter_mut() {
             match self.scene.draw(phase, camera, frame, &mut self.renderer) {
