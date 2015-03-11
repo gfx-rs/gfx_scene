@@ -1,13 +1,17 @@
 extern crate draw_queue;
 
 use std::cmp::Ordering;
+use std::collections::HashMap;
 use gfx;
+use mem;
 
 pub type FlushError = gfx::DrawError<gfx::batch::OutOfBounds>;
 
+/// An abstract phase. Needs to be object-safe as phases should be
+/// allowed to be stored in boxed form in containers.
 pub trait AbstractPhase<D: gfx::Device, E, Z> {
     /// Check if it makes sense to draw this entity
-    fn does_apply(&self, &E) -> bool;
+    fn test(&self, &E) -> bool;
     /// Add an entity to the queue
     fn enqueue(&mut self, &E, Z, &mut gfx::batch::Context<D::Resources>)
                -> Result<(), gfx::batch::Error>;
@@ -23,6 +27,19 @@ struct Object<S, P: gfx::shade::ShaderParam> {
     params: P,
     slice: gfx::Slice<P::Resources>,
     depth: S,
+}
+
+impl<S: Copy, P: gfx::shade::ShaderParam + Clone> Clone
+for Object<S, P> where P::Link: Copy
+{
+    fn clone(&self) -> Object<S, P> {
+        Object {
+            batch: self.batch,
+            params: self.params.clone(),
+            slice: self.slice.clone(),
+            depth: self.depth,
+        }
+    }
 }
 
 impl<S: PartialOrd, P: gfx::shade::ShaderParam> Object<S, P> {
@@ -52,10 +69,12 @@ pub struct Phase<
     M: ::Material,
     Z: ToDepth,
     T: ::Technique<R, M, Z>,
+    Y,
 >{
     pub name: String,
-    technique: T,
-    sort: Vec<Sort>,
+    pub technique: T,
+    memory: Y,
+    pub sort: Vec<Sort>,
     queue: draw_queue::Queue<Object<Z::Depth, T::Params>>,
 }
 
@@ -64,12 +83,37 @@ impl<
     M: ::Material,
     Z: ToDepth,
     T: ::Technique<R, M, Z>,
-> Phase<R, M, Z, T> {
-    pub fn new(name: &str, tech: T, sort: Sort) -> Phase<R, M, Z, T> {
+> Phase<R, M, Z, T, ()> {
+    pub fn new(name: &str, tech: T) -> Phase<R, M, Z, T, ()> {
         Phase {
             name: name.to_string(),
             technique: tech,
-            sort: vec![sort],
+            memory: (),
+            sort: Vec::new(),
+            queue: draw_queue::Queue::new(),
+        }
+    }
+}
+
+pub type CacheMap<
+    R: gfx::Resources,
+    M: ::Material,
+    Z: ToDepth,
+    T: ::Technique<R, M, Z>,
+> = HashMap<T::Essense, mem::MemResult<Object<Z::Depth, T::Params>>>;
+
+impl<
+    R: gfx::Resources,
+    M: ::Material,
+    Z: ToDepth,
+    T: ::Technique<R, M, Z>,
+> Phase<R, M, Z, T, CacheMap<R, M, Z, T>> {
+    pub fn new_cached(name: &str, tech: T) -> Phase<R, M, Z, T, CacheMap<R, M, Z, T>> {
+        Phase {
+            name: name.to_string(),
+            technique: tech,
+            memory: HashMap::new(),
+            sort: Vec::new(),
             queue: draw_queue::Queue::new(),
         }
     }
@@ -81,46 +125,66 @@ impl<
     Z: ToDepth + Copy,
     E: ::Entity<D::Resources, M>,
     T: ::Technique<D::Resources, M, Z>,
->AbstractPhase<D, E, Z> for Phase<D::Resources, M, Z, T> {
-    fn does_apply(&self, entity: &E) -> bool {
-        self.technique.does_apply(entity.get_mesh().0, entity.get_material())
+    Y: mem::Memory<T::Essense, Object<Z::Depth, T::Params>>,
+>AbstractPhase<D, E, Z> for Phase<D::Resources, M, Z, T, Y> where
+    Z::Depth: Copy,
+    T::Params: Clone,
+    <T::Params as gfx::shade::ShaderParam>::Link: Copy,    
+{
+    fn test(&self, entity: &E) -> bool {
+        self.technique.test(entity.get_mesh().0, entity.get_material())
+                      .is_some()
     }
 
     fn enqueue(&mut self, entity: &E, data: Z,
                context: &mut gfx::batch::Context<D::Resources>)
                -> Result<(), gfx::batch::Error> {
-        // unable to use `self.does_apply` here
-        debug_assert!(self.technique.does_apply(
-            entity.get_mesh().0, entity.get_material()
-        ));
-        let depth = data.to_depth();
-        // TODO: batch cache
+        let essense = self.technique.test(
+            entity.get_mesh().0, entity.get_material())
+            .unwrap(); //TODO?
         let (orig_mesh, slice) = entity.get_mesh();
-        let (program, mut params, inst_mesh, state) = self.technique.compile(
-            orig_mesh, entity.get_material(), data);
+        // Try recalling from memory
+        match self.memory.lookup(essense) {
+            Some(Ok(mut o)) => {
+                o.slice = slice.clone();
+                self.technique.fix_params(entity.get_material(),
+                                          &data, &mut o.params);
+                self.queue.objects.push(o);
+                return Ok(())
+            },
+            Some(Err(e)) => return Err(e),
+            None => ()
+        }
+        // Compile with the technique
+        let depth = data.to_depth();
+        let (program, params, inst_mesh, state) =
+            self.technique.compile(essense, data);
+        // this would be useful, but requires a ton of new constraints on Params
+        //debug_assert_eq!({
+        //    let mut p2 = params;
+        //    self.technique.fix_params(entity.get_material(), &data, &mut p2);
+        //    p2}, params);
         let mut temp_mesh = gfx::Mesh::new(orig_mesh.num_vertices);
         let mesh = match inst_mesh {
             Some(m) => {
                 temp_mesh.attributes.extend(orig_mesh.attributes.iter()
-                        .chain(m.attributes.iter()).map(|a| a.clone()));
+                    .chain(m.attributes.iter()).map(|a| a.clone()));
                 &temp_mesh
             },
             None => orig_mesh,
         };
-        match context.make_core(program, mesh, state) {
-            Ok(b) => {
-                //TODO: only if cached
-                self.technique.fix_params(entity.get_material(),
-                                          &data, &mut params);
-                let object = Object {
-                    batch: b,
-                    params: params,
-                    slice: slice.clone(),
-                    depth: depth,
-                };
-                self.queue.objects.push(object);
-                Ok(())
-            },
+        // Create queue object
+        let object = context.make_core(program, mesh, state)
+                            .map(|b| Object {
+                                batch: b,
+                                params: params,
+                                slice: slice.clone(),
+                                depth: depth,
+                            });
+        // Remember and return
+        self.memory.store(essense, object.clone());
+        match object {
+            Ok(o) => Ok(self.queue.objects.push(o)),
             Err(e) => Err(e),
         }
     }

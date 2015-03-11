@@ -96,7 +96,7 @@ impl<
         let projection = camera.projection.to_matrix4()
                                .mul_m(&cam_inverse.to_matrix4());
         for entity in self.entities.iter_mut() {
-            if !phase.does_apply(entity) {
+            if !phase.test(entity) {
                  continue
             }
             let model = self.world.get_transform(&entity.node);
@@ -120,22 +120,22 @@ impl<
 
 /// Wrapper around a scene that carries a list of phases as well as the
 /// `Renderer`, allowing to isolate a command buffer completely.
-pub struct PhaseHarness<D: gfx::Device, C, P> {
+pub struct PhaseHarness<D: gfx::Device, C: AbstractScene<D>> {
     pub scene: C,
-    pub phases: Vec<P>,
+    pub phases: Vec<Box<phase::AbstractPhase<D, C::Entity, C::SpaceData>>>,
     pub renderer: gfx::Renderer<D::Resources, D::CommandBuffer>,
 }
 
 impl<
     D: gfx::Device,
     C: AbstractScene<D>,
-    H: phase::AbstractPhase<D, C::Entity, C::SpaceData>
-> PhaseHarness<D, C, H> {
+> PhaseHarness<D, C> {
     pub fn draw(&mut self, camera: &C::Camera, frame: &gfx::Frame<D::Resources>)
                 -> Result<(), Error> {
+        use std::ops::DerefMut;
         self.renderer.reset();
         for phase in self.phases.iter_mut() {
-            match self.scene.draw(phase, camera, frame, &mut self.renderer) {
+            match self.scene.draw(phase.deref_mut(), camera, frame, &mut self.renderer) {
                 Ok(_) => (),
                 Err(e) => return Err(e),
             }
@@ -156,7 +156,4 @@ pub type StandardScene<
     M: phase::Material,
     W: World,
     P: cgmath::Projection<W::Scalar>,
-> = PhaseHarness<D,
-    Scene<D::Resources, M, W, P>,
-    Box<phase::AbstractPhase<D, Entity<D::Resources, M, W>, SpaceData<W::Scalar>>>
->;
+> = PhaseHarness<D, Scene<D::Resources, M, W, P>>;
