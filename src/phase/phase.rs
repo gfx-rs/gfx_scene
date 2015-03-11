@@ -98,21 +98,16 @@ impl<
         let (orig_mesh, slice) = entity.get_mesh();
         let (program, mut params, inst_mesh, state) = self.technique.compile(
             orig_mesh, entity.get_material(), data);
-        let batch_result = match inst_mesh {
+        let mut temp_mesh = gfx::Mesh::new(orig_mesh.num_vertices);
+        let mesh = match inst_mesh {
             Some(m) => {
-                let mesh = &gfx::Mesh {
-                    num_vertices: orig_mesh.num_vertices,
-                    attributes: orig_mesh.attributes.iter()
-                        .chain(m.attributes.iter()).
-                        map(|a| a.clone()).collect(),
-                };
-                context.make_core(program, mesh, state)
+                temp_mesh.attributes.extend(orig_mesh.attributes.iter()
+                        .chain(m.attributes.iter()).map(|a| a.clone()));
+                &temp_mesh
             },
-            None => {
-                context.make_core(program, orig_mesh, state)
-            },
+            None => orig_mesh,
         };
-        match batch_result {
+        match context.make_core(program, mesh, state) {
             Ok(b) => {
                 //TODO: only if cached
                 self.technique.fix_params(entity.get_material(),
