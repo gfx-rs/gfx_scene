@@ -4,21 +4,21 @@ use gfx;
 
 pub type MemResult<T> = Result<T, gfx::batch::Error>; 
 
-pub trait Memory<T, K> {
-    fn lookup(&self, T) -> Option<MemResult<K>>;
-    fn store(&mut self, T, MemResult<K>);
+pub trait Memory<T, S> {
+    fn lookup(&self, T) -> Option<MemResult<S>>;
+    fn store(&mut self, T, MemResult<S>);
 }
 
-impl<T, K> Memory<T, K> for () {
-	  fn lookup(&self, _: T) -> Option<MemResult<K>> { None }
-    fn store(&mut self, _: T, _: MemResult<K>) {}
+impl<T, S> Memory<T, S> for () {
+	  fn lookup(&self, _: T) -> Option<MemResult<S>> { None }
+    fn store(&mut self, _: T, _: MemResult<S>) {}
 }
 
-impl<T: Hash + Eq, K: Clone> Memory<T, K> for HashMap<T, MemResult<K>> {
-    fn lookup(&self, input: T) -> Option<MemResult<K>> {
+impl<T: Hash + Eq, S: Clone> Memory<T, S> for HashMap<T, MemResult<S>> {
+    fn lookup(&self, input: T) -> Option<MemResult<S>> {
         self.get(&input).map(|r| r.clone())
     }
-    fn store(&mut self, input: T, out: MemResult<K>) {
+    fn store(&mut self, input: T, out: MemResult<S>) {
         self.insert(input, out);
     }
 }

@@ -9,11 +9,11 @@ pub type FlushError = gfx::DrawError<gfx::batch::OutOfBounds>;
 
 /// An abstract phase. Needs to be object-safe as phases should be
 /// allowed to be stored in boxed form in containers.
-pub trait AbstractPhase<D: gfx::Device, E, Z> {
+pub trait AbstractPhase<D: gfx::Device, E, V: ::ToDepth> {
     /// Check if it makes sense to draw this entity
     fn test(&self, &E) -> bool;
     /// Add an entity to the queue
-    fn enqueue(&mut self, &E, Z, &mut gfx::batch::Context<D::Resources>)
+    fn enqueue(&mut self, &E, V, &mut gfx::batch::Context<D::Resources>)
                -> Result<(), gfx::batch::Error>;
     /// Flush the queue into a given renderer
     fn flush(&mut self, &gfx::Frame<D::Resources>,
@@ -57,34 +57,29 @@ pub enum Sort {
     DrawState,
 }
 
-pub trait ToDepth {
-    type Depth: PartialOrd;
-    fn to_depth(&self) -> Self::Depth;
-}
-
 /// Phase is doing draw call accumulating and sorting,
 /// based a given technique.
 pub struct Phase<
     R: gfx::Resources,
     M: ::Material,
-    Z: ToDepth,
-    T: ::Technique<R, M, Z>,
-    Y,
+    V: ::ToDepth,
+    T: ::Technique<R, M, V>,
+    Y,  // Memory
 >{
     pub name: String,
     pub technique: T,
     memory: Y,
     pub sort: Vec<Sort>,
-    queue: draw_queue::Queue<Object<Z::Depth, T::Params>>,
+    queue: draw_queue::Queue<Object<V::Depth, T::Params>>,
 }
 
 impl<
     R: gfx::Resources,
     M: ::Material,
-    Z: ToDepth,
-    T: ::Technique<R, M, Z>,
-> Phase<R, M, Z, T, ()> {
-    pub fn new(name: &str, tech: T) -> Phase<R, M, Z, T, ()> {
+    V: ::ToDepth,
+    T: ::Technique<R, M, V>,
+> Phase<R, M, V, T, ()> {
+    pub fn new(name: &str, tech: T) -> Phase<R, M, V, T, ()> {
         Phase {
             name: name.to_string(),
             technique: tech,
@@ -98,17 +93,17 @@ impl<
 pub type CacheMap<
     R: gfx::Resources,
     M: ::Material,
-    Z: ToDepth,
-    T: ::Technique<R, M, Z>,
-> = HashMap<T::Essense, mem::MemResult<Object<Z::Depth, T::Params>>>;
+    V: ::ToDepth,
+    T: ::Technique<R, M, V>,
+> = HashMap<T::Essense, mem::MemResult<Object<V::Depth, T::Params>>>;
 
 impl<
     R: gfx::Resources,
     M: ::Material,
-    Z: ToDepth,
-    T: ::Technique<R, M, Z>,
-> Phase<R, M, Z, T, CacheMap<R, M, Z, T>> {
-    pub fn new_cached(name: &str, tech: T) -> Phase<R, M, Z, T, CacheMap<R, M, Z, T>> {
+    V: ::ToDepth,
+    T: ::Technique<R, M, V>,
+> Phase<R, M, V, T, CacheMap<R, M, V, T>> {
+    pub fn new_cached(name: &str, tech: T) -> Phase<R, M, V, T, CacheMap<R, M, V, T>> {
         Phase {
             name: name.to_string(),
             technique: tech,
@@ -122,12 +117,12 @@ impl<
 impl<
     D: gfx::Device,
     M: ::Material,
-    Z: ToDepth + Copy,
+    V: ::ToDepth + Copy,
     E: ::Entity<D::Resources, M>,
-    T: ::Technique<D::Resources, M, Z>,
-    Y: mem::Memory<T::Essense, Object<Z::Depth, T::Params>>,
->AbstractPhase<D, E, Z> for Phase<D::Resources, M, Z, T, Y> where
-    Z::Depth: Copy,
+    T: ::Technique<D::Resources, M, V>,
+    Y: mem::Memory<T::Essense, Object<V::Depth, T::Params>>,
+>AbstractPhase<D, E, V> for Phase<D::Resources, M, V, T, Y> where
+    V::Depth: Copy,
     T::Params: Clone,
     <T::Params as gfx::shade::ShaderParam>::Link: Copy,    
 {
@@ -136,7 +131,7 @@ impl<
                       .is_some()
     }
 
-    fn enqueue(&mut self, entity: &E, data: Z,
+    fn enqueue(&mut self, entity: &E, view_info: V,
                context: &mut gfx::batch::Context<D::Resources>)
                -> Result<(), gfx::batch::Error> {
         let essense = self.technique.test(
@@ -148,7 +143,7 @@ impl<
             Some(Ok(mut o)) => {
                 o.slice = slice.clone();
                 self.technique.fix_params(entity.get_material(),
-                                          &data, &mut o.params);
+                                          &view_info, &mut o.params);
                 self.queue.objects.push(o);
                 return Ok(())
             },
@@ -156,9 +151,9 @@ impl<
             None => ()
         }
         // Compile with the technique
-        let depth = data.to_depth();
+        let depth = view_info.to_depth();
         let (program, params, inst_mesh, state) =
-            self.technique.compile(essense, data);
+            self.technique.compile(essense, view_info);
         // this would be useful, but requires a ton of new constraints on Params
         //debug_assert_eq!({
         //    let mut p2 = params;

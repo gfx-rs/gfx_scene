@@ -32,7 +32,7 @@ pub trait World {
     fn iter_bones(&self, &Self::SkeletonPtr) -> Self::Iter;
 }
 
-pub struct Entity<R: gfx::Resources, M, W: World> {
+pub struct Entity<R: gfx::Resources, M: phase::Material, W: World> {
     pub name: String,
     pub material: M,
     mesh: gfx::Mesh<R>,
@@ -41,7 +41,7 @@ pub struct Entity<R: gfx::Resources, M, W: World> {
     skeleton: Option<W::SkeletonPtr>,
 }
 
-impl<R: gfx::Resources, M, W: World> phase::Entity<R, M> for Entity<R, M, W> {
+impl<R: gfx::Resources, M: phase::Material, W: World> phase::Entity<R, M> for Entity<R, M, W> {
     fn get_material(&self) -> &M {
         &self.material
     }
@@ -56,7 +56,7 @@ pub struct Camera<P, N> {
     pub node: N,
 }
 
-pub struct Scene<R: gfx::Resources, M, W: World, P> {
+pub struct Scene<R: gfx::Resources, M: phase::Material, W: World, P> {
     pub entities: Vec<Entity<R, M, W>>,
     pub cameras: Vec<Camera<P, W::NodePtr>>,
     pub world: W,
