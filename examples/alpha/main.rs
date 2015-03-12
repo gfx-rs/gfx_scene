@@ -10,7 +10,7 @@ extern crate gfx_phase;
 use cgmath::{Matrix, Matrix4, Point3, Vector3, vec3};
 use cgmath::{FixedArray, Transform, AffineMatrix3};
 use gfx::traits::*;
-use gfx_phase::AbstractPhase;
+use gfx_phase::{QueuePhase, FlushPhase};
 
 #[vertex_format]
 #[derive(Copy)]
@@ -203,9 +203,6 @@ fn main() {
         renderer.reset();
         renderer.clear(clear_data, gfx::COLOR | gfx::DEPTH, &frame);
 
-        // somehow, rust doesn't see the namespace... why?
-        let p: &mut gfx_phase::AbstractPhase<gfx_device_gl::GlDevice, _, _> = &mut phase;
-
         for ent in entities.iter() {
             use std::num::Float;
             let angle = ent.material.alpha * std::f32::consts::PI * 2.0;
@@ -213,9 +210,9 @@ fn main() {
                 3.0 * angle.cos(), 0.0, 3.0 * angle.sin()
             ));
             let space_data = SpaceData(proj_view.mul_m(&model));
-            p.enqueue(ent, space_data, &mut context).unwrap();
+            phase.enqueue(ent, space_data, &mut context).unwrap();
         }
-        p.flush(&frame, &mut context, &mut renderer).unwrap();
+        phase.flush(&frame, &mut context, &mut renderer).unwrap();
         
         device.submit(renderer.as_buffer());
         window.swap_buffers();

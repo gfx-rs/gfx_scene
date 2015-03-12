@@ -7,20 +7,28 @@ use mem;
 
 pub type FlushError = gfx::DrawError<gfx::batch::OutOfBounds>;
 
-/// An abstract phase. Needs to be object-safe as phases should be
-/// allowed to be stored in boxed form in containers.
-pub trait AbstractPhase<D: gfx::Device, E, V: ::ToDepth> {
+/// An aspect of the phase to allow flushing into a Renderer
+pub trait FlushPhase<R: gfx::Resources, C: gfx::CommandBuffer<R>> {
+    /// Flush the queue into a given renderer
+    fn flush(&mut self, &gfx::Frame<R>, &gfx::batch::Context<R>,
+             &mut gfx::Renderer<R, C>) -> Result<(), FlushError>;
+}
+
+/// An aspect of the phase that allows queuing entities for rendering
+pub trait QueuePhase<R: gfx::Resources, E, V: ::ToDepth> {
     /// Check if it makes sense to draw this entity
     fn test(&self, &E) -> bool;
     /// Add an entity to the queue
-    fn enqueue(&mut self, &E, V, &mut gfx::batch::Context<D::Resources>)
+    fn enqueue(&mut self, &E, V, &mut gfx::batch::Context<R>)
                -> Result<(), gfx::batch::Error>;
-    /// Flush the queue into a given renderer
-    fn flush(&mut self, &gfx::Frame<D::Resources>,
-             &gfx::batch::Context<D::Resources>,
-             &mut gfx::Renderer<D::Resources, D::CommandBuffer>)
-             -> Result<(), FlushError>;
 }
+
+/// An abstract phase. Needs to be object-safe as phases should be
+/// allowed to be stored in boxed form in containers.
+pub trait AbstractPhase<D: gfx::Device, E, V: ::ToDepth>:
+    QueuePhase<D::Resources, E, V> +
+    FlushPhase<D::Resources, D::CommandBuffer>
+{}
 
 struct Object<S, P: gfx::shade::ShaderParam> {
     batch: gfx::batch::CoreBatch<P>,
@@ -115,14 +123,13 @@ impl<
 }
 
 impl<
-    D: gfx::Device,
+    R: gfx::Resources,
     M: ::Material,
     V: ::ToDepth + Copy,
-    E: ::Entity<D::Resources, M>,
-    T: ::Technique<D::Resources, M, V>,
+    E: ::Entity<R, M>,
+    T: ::Technique<R, M, V>,
     Y: mem::Memory<T::Kernel, Object<V::Depth, T::Params>>,
->AbstractPhase<D, E, V> for Phase<D::Resources, M, V, T, Y> where
-    V::Depth: Copy,
+>QueuePhase<R, E, V> for Phase<R, M, V, T, Y> where
     T::Params: Clone,
     <T::Params as gfx::shade::ShaderParam>::Link: Copy,    
 {
@@ -132,7 +139,7 @@ impl<
     }
 
     fn enqueue(&mut self, entity: &E, view_info: V,
-               context: &mut gfx::batch::Context<D::Resources>)
+               context: &mut gfx::batch::Context<R>)
                -> Result<(), gfx::batch::Error> {
         let kernel = self.technique.test(
             entity.get_mesh().0, entity.get_material())
@@ -180,11 +187,18 @@ impl<
             Err(e) => Err(e),
         }
     }
+}
 
-    fn flush(&mut self, frame: &gfx::Frame<D::Resources>,
-             context: &gfx::batch::Context<D::Resources>,
-             renderer: &mut gfx::Renderer<D::Resources, D::CommandBuffer>)
-             -> Result<(), FlushError> {
+impl<
+    R: gfx::Resources,
+    C: gfx::CommandBuffer<R>,
+    M: ::Material,
+    V: ::ToDepth + Copy,
+    T: ::Technique<R, M, V>,
+    Y: mem::Memory<T::Kernel, Object<V::Depth, T::Params>>,
+>FlushPhase<R, C> for Phase<R, M, V, T, Y> {
+    fn flush(&mut self, frame: &gfx::Frame<R>, context: &gfx::batch::Context<R>,
+             renderer: &mut gfx::Renderer<R, C>) -> Result<(), FlushError> {
         // sort the queue
         match self.sort.first() {
             Some(&Sort::FrontToBack) =>
@@ -211,3 +225,15 @@ impl<
         Ok(())
     }
 }
+
+impl<
+    D: gfx::Device,
+    M: ::Material,
+    V: ::ToDepth + Copy,
+    E: ::Entity<D::Resources, M>,
+    T: ::Technique<D::Resources, M, V>,
+    Y: mem::Memory<T::Kernel, Object<V::Depth, T::Params>>,
+>AbstractPhase<D, E, V> for Phase<D::Resources, M, V, T, Y> where
+    T::Params: Clone,
+    <T::Params as gfx::shade::ShaderParam>::Link: Copy,
+{}

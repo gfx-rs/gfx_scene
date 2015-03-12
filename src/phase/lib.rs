@@ -7,14 +7,15 @@ use std::fmt::Debug;
 use std::hash::Hash;
 use std::marker::PhantomFn;
 
-pub use self::phase::{FlushError, AbstractPhase, Sort, Phase};
+pub use self::phase::{FlushError, QueuePhase, FlushPhase,
+                      AbstractPhase, Sort, Phase};
 
 /// Abstract material
 pub trait Material: PhantomFn<Self> {}
 
 /// View information that can be transformed into depth
 pub trait ToDepth {
-    type Depth: PartialOrd;
+    type Depth: Copy + PartialOrd;
     fn to_depth(&self) -> Self::Depth;
 }
 
