@@ -95,7 +95,7 @@ pub type CacheMap<
     M: ::Material,
     V: ::ToDepth,
     T: ::Technique<R, M, V>,
-> = HashMap<T::Essense, mem::MemResult<Object<V::Depth, T::Params>>>;
+> = HashMap<T::Kernel, mem::MemResult<Object<V::Depth, T::Params>>>;
 
 impl<
     R: gfx::Resources,
@@ -120,7 +120,7 @@ impl<
     V: ::ToDepth + Copy,
     E: ::Entity<D::Resources, M>,
     T: ::Technique<D::Resources, M, V>,
-    Y: mem::Memory<T::Essense, Object<V::Depth, T::Params>>,
+    Y: mem::Memory<T::Kernel, Object<V::Depth, T::Params>>,
 >AbstractPhase<D, E, V> for Phase<D::Resources, M, V, T, Y> where
     V::Depth: Copy,
     T::Params: Clone,
@@ -134,12 +134,12 @@ impl<
     fn enqueue(&mut self, entity: &E, view_info: V,
                context: &mut gfx::batch::Context<D::Resources>)
                -> Result<(), gfx::batch::Error> {
-        let essense = self.technique.test(
+        let kernel = self.technique.test(
             entity.get_mesh().0, entity.get_material())
             .unwrap(); //TODO?
         let (orig_mesh, slice) = entity.get_mesh();
         // Try recalling from memory
-        match self.memory.lookup(essense) {
+        match self.memory.lookup(kernel) {
             Some(Ok(mut o)) => {
                 o.slice = slice.clone();
                 self.technique.fix_params(entity.get_material(),
@@ -153,7 +153,7 @@ impl<
         // Compile with the technique
         let depth = view_info.to_depth();
         let (program, mut params, inst_mesh, state) =
-            self.technique.compile(essense, view_info);
+            self.technique.compile(kernel, view_info);
         self.technique.fix_params(entity.get_material(),
                                   &view_info, &mut params);
         let mut temp_mesh = gfx::Mesh::new(orig_mesh.num_vertices);
@@ -174,7 +174,7 @@ impl<
                                 depth: depth,
                             });
         // Remember and return
-        self.memory.store(essense, object.clone());
+        self.memory.store(kernel, object.clone());
         match object {
             Ok(o) => Ok(self.queue.objects.push(o)),
             Err(e) => Err(e),

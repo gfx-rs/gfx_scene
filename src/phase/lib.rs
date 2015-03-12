@@ -29,10 +29,10 @@ pub type TechResult<'a, R, P> = (
 /// It processes a material, checks for the compatibility, adds a mesh
 /// to produce a shader program with associated data (state, parameters).
 pub trait Technique<R: gfx::Resources, M: Material, V: ToDepth> {
-    type Essense: Copy + Debug + Eq + Hash;
+    type Kernel: Copy + Debug + Eq + Hash;
     type Params: gfx::shade::ShaderParam<Resources = R>;
-    fn test(&self, &gfx::Mesh<R>, &M) -> Option<Self::Essense>;
-    fn compile<'a>(&'a self, Self::Essense, V)
+    fn test(&self, &gfx::Mesh<R>, &M) -> Option<Self::Kernel>;
+    fn compile<'a>(&'a self, Self::Kernel, V)
                    -> TechResult<'a, R, Self::Params>;
     fn fix_params(&self, &M, &V, &mut Self::Params);
 }
