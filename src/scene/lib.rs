@@ -2,19 +2,25 @@ extern crate "gfx_phase" as phase;
 extern crate gfx;
 extern crate cgmath;
 
+use std::marker::PhantomData;
+
 #[derive(Debug)]
 pub enum Error {
     Batch(gfx::batch::Error),
     Flush(phase::FlushError),
 }
 
+pub trait ViewInfo<S, T: cgmath::Transform3<S>>: phase::ToDepth<Depth = S> {
+    fn new(mvp: cgmath::Matrix4<S>, view: T, model: T) -> Self;
+}
+
 /// Abstract scene that can be drawn into something
 pub trait AbstractScene<D: gfx::Device> {
-    type SpaceData;
+    type ViewInfo;
     type Entity;
     type Camera;
 
-    fn draw<H: phase::AbstractPhase<D, Self::Entity, Self::SpaceData> + ?Sized>(
+    fn draw<H: phase::AbstractPhase<D, Self::Entity, Self::ViewInfo> + ?Sized>(
             &mut self, &mut H, &Self::Camera, &gfx::Frame<D::Resources>,
             &mut gfx::Renderer<D::Resources, D::CommandBuffer>) -> Result<(), Error>;
 }
@@ -23,7 +29,7 @@ pub trait AbstractScene<D: gfx::Device> {
 pub trait World {
     type Scalar: cgmath::BaseFloat + 'static;
     type Rotation: cgmath::Rotation3<Self::Scalar>;
-    type Transform: cgmath::CompositeTransform3<Self::Scalar, Self::Rotation>;
+    type Transform: cgmath::CompositeTransform3<Self::Scalar, Self::Rotation> + Clone;
     type NodePtr;
     type SkeletonPtr;
     type Iter: Iterator<Item = Self::Transform>;
@@ -56,23 +62,12 @@ pub struct Camera<P, N> {
     pub node: N,
 }
 
-pub struct Scene<R: gfx::Resources, M: phase::Material, W: World, P> {
+pub struct Scene<R: gfx::Resources, M: phase::Material, W: World, P, V> {
     pub entities: Vec<Entity<R, M, W>>,
     pub cameras: Vec<Camera<P, W::NodePtr>>,
     pub world: W,
     context: gfx::batch::Context<R>,
-}
-
-pub struct SpaceData<S> {
-    pub vertex_mx: cgmath::Matrix4<S>,
-    pub normal_mx: cgmath::Matrix3<S>,
-}
-
-impl<S: cgmath::BaseFloat> phase::ToDepth for SpaceData<S> {
-    type Depth = S;
-    fn to_depth(&self) -> S {
-        self.vertex_mx.w.z / self.vertex_mx.w.w
-    }
+    _view_dummy: PhantomData<V>,
 }
 
 impl<
@@ -80,17 +75,18 @@ impl<
     M: phase::Material,
     W: World,
     P: cgmath::Projection<W::Scalar>,
-> AbstractScene<D> for Scene<D::Resources, M, W, P> {
-    type SpaceData = SpaceData<W::Scalar>;
+    V: ViewInfo<W::Scalar, W::Transform>,
+> AbstractScene<D> for Scene<D::Resources, M, W, P, V> {
+    type ViewInfo = V;
     type Entity = Entity<D::Resources, M, W>;
     type Camera = Camera<P, W::NodePtr>;
 
-    fn draw<H: phase::AbstractPhase<D, Entity<D::Resources, M, W>, SpaceData<W::Scalar>> + ?Sized>(
+    fn draw<H: phase::AbstractPhase<D, Entity<D::Resources, M, W>, V> + ?Sized>(
             &mut self, phase: &mut H, camera: &Camera<P, W::NodePtr>,
             frame: &gfx::Frame<D::Resources>,
             renderer: &mut gfx::Renderer<D::Resources, D::CommandBuffer>)
             -> Result<(), Error> {
-        use cgmath::{Matrix, ToMatrix3, ToMatrix4, Transform, ToComponents};
+        use cgmath::{Matrix, ToMatrix4, Transform};
         let cam_inverse = self.world.get_transform(&camera.node)
                                     .invert().unwrap();
         let projection = camera.projection.to_matrix4()
@@ -102,13 +98,9 @@ impl<
             let model = self.world.get_transform(&entity.node);
             let view = cam_inverse.concat(&model);
             let mvp = projection.mul_m(&model.to_matrix4());
-            let (_, rot, _) = view.decompose();
             //TODO: cull `ent.bounds` here
-            let data = SpaceData {
-                vertex_mx: mvp,
-                normal_mx: rot.to_matrix3(),
-            };
-            match phase.enqueue(entity, data, &mut self.context) {
+            let view_info = ViewInfo::new(mvp, view, model.clone());
+            match phase.enqueue(entity, view_info, &mut self.context) {
                 Ok(()) => (),
                 Err(e) => return Err(Error::Batch(e)),
             }
@@ -122,7 +114,7 @@ impl<
 /// `Renderer`, allowing to isolate a command buffer completely.
 pub struct PhaseHarness<D: gfx::Device, C: AbstractScene<D>> {
     pub scene: C,
-    pub phases: Vec<Box<phase::AbstractPhase<D, C::Entity, C::SpaceData>>>,
+    pub phases: Vec<Box<phase::AbstractPhase<D, C::Entity, C::ViewInfo>>>,
     pub renderer: gfx::Renderer<D::Resources, D::CommandBuffer>,
 }
 
@@ -148,12 +140,3 @@ pub type PerspectiveCam<W: World> = Camera<
     cgmath::PerspectiveFov<W::Scalar, cgmath::Rad<W::Scalar>>,
     W::NodePtr
 >;
-
-/// A typical scene to be used in demoes. Has a heterogeneous vector of phases
-/// and a perspective fov-based camera.
-pub type StandardScene<
-    D: gfx::Device,
-    M: phase::Material,
-    W: World,
-    P: cgmath::Projection<W::Scalar>,
-> = PhaseHarness<D, Scene<D::Resources, M, W, P>>;
