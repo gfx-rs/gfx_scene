@@ -152,13 +152,10 @@ impl<
         }
         // Compile with the technique
         let depth = view_info.to_depth();
-        let (program, params, inst_mesh, state) =
+        let (program, mut params, inst_mesh, state) =
             self.technique.compile(essense, view_info);
-        // this would be useful, but requires a ton of new constraints on Params
-        //debug_assert_eq!({
-        //    let mut p2 = params;
-        //    self.technique.fix_params(entity.get_material(), &data, &mut p2);
-        //    p2}, params);
+        self.technique.fix_params(entity.get_material(),
+                                  &view_info, &mut params);
         let mut temp_mesh = gfx::Mesh::new(orig_mesh.num_vertices);
         let mesh = match inst_mesh {
             Some(m) => {
