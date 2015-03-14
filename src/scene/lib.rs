@@ -63,6 +63,61 @@ pub struct Camera<P, N> {
     pub node: N,
 }
 
+pub fn draw_entities<'a,
+    D: gfx::Device,
+    M: phase::Material + 'a,
+    W: World + 'a,
+    B: cgmath::Bound<W::Scalar> + 'a,
+    H: phase::AbstractPhase<D, Entity<D::Resources, M, W, B>, V> + ?Sized,
+    P: cgmath::Projection<W::Scalar>,
+    V: ViewInfo<W::Scalar, W::Transform>,
+    I: Iterator<Item = &'a mut Entity<D::Resources, M, W, B>>,
+>
+(   entities: I, phase: &mut H, world: &W, camera: &Camera<P, W::NodePtr>,
+    frame: &gfx::Frame<D::Resources>, context: &mut gfx::batch::Context<D::Resources>,
+    renderer: &mut gfx::Renderer<D::Resources, D::CommandBuffer>)
+    -> Result<(), Error>
+where
+    D::Resources: 'a,
+    <D::Resources as gfx::Resources>::Buffer: 'a,
+    <D::Resources as gfx::Resources>::ArrayBuffer: 'a,
+    <D::Resources as gfx::Resources>::Shader: 'a,
+    <D::Resources as gfx::Resources>::Program: 'a,
+    <D::Resources as gfx::Resources>::FrameBuffer: 'a,
+    <D::Resources as gfx::Resources>::Surface: 'a,
+    <D::Resources as gfx::Resources>::Texture: 'a,
+    <D::Resources as gfx::Resources>::Sampler: 'a,
+    W::Rotation: 'a,
+    W::Transform: 'a,
+    W::NodePtr: 'a,
+    W::SkeletonPtr: 'a,
+    W::Iter: 'a,
+{
+    use cgmath::{Matrix, ToMatrix4, Transform};
+    let cam_inverse = world.get_transform(&camera.node)
+                           .invert().unwrap();
+    let projection = camera.projection.to_matrix4()
+                           .mul_m(&cam_inverse.to_matrix4());
+    for entity in entities {
+        if !phase.test(entity) {
+            continue
+        }
+        let model = world.get_transform(&entity.node);
+        let view = cam_inverse.concat(&model);
+        let mvp = projection.mul_m(&model.to_matrix4());
+        if entity.bound.relate_clip_space(&mvp) == cgmath::Relation::Out {
+            continue
+        }
+        let view_info = ViewInfo::new(mvp, view, model.clone());
+        match phase.enqueue(entity, view_info, context) {
+            Ok(()) => (),
+            Err(e) => return Err(Error::Batch(e)),
+        }
+    }
+    phase.flush(frame, context, renderer)
+         .map_err(|e| Error::Flush(e))
+}
+
 pub struct Scene<R: gfx::Resources, M, W: World, B, P, V> {
     pub entities: Vec<Entity<R, M, W, B>>,
     pub cameras: Vec<Camera<P, W::NodePtr>>,
@@ -88,29 +143,8 @@ impl<
             frame: &gfx::Frame<D::Resources>,
             renderer: &mut gfx::Renderer<D::Resources, D::CommandBuffer>)
             -> Result<(), Error> {
-        use cgmath::{Matrix, ToMatrix4, Transform};
-        let cam_inverse = self.world.get_transform(&camera.node)
-                                    .invert().unwrap();
-        let projection = camera.projection.to_matrix4()
-                               .mul_m(&cam_inverse.to_matrix4());
-        for entity in self.entities.iter_mut() {
-            if !phase.test(entity) {
-                continue
-            }
-            let model = self.world.get_transform(&entity.node);
-            let view = cam_inverse.concat(&model);
-            let mvp = projection.mul_m(&model.to_matrix4());
-            if entity.bound.relate_clip_space(&mvp) == cgmath::Relation::Out {
-                continue
-            }
-            let view_info = ViewInfo::new(mvp, view, model.clone());
-            match phase.enqueue(entity, view_info, &mut self.context) {
-                Ok(()) => (),
-                Err(e) => return Err(Error::Batch(e)),
-            }
-        }
-        phase.flush(frame, &self.context, renderer)
-             .map_err(|e| Error::Flush(e))
+        draw_entities(self.entities.iter_mut(), phase, &self.world, camera,
+                     frame, &mut self.context, renderer)
     }
 }
 
