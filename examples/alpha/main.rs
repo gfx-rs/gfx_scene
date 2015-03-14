@@ -160,7 +160,7 @@ fn main() {
     ];
 
     let slice = device
-        .create_buffer_static(index_data)
+        .create_buffer_index(index_data)
         .to_slice(gfx::PrimitiveType::TriangleList);
 
     let entities: Vec<_> = (0..10).map(|i| Entity {

@@ -38,16 +38,17 @@ pub trait World {
     fn iter_bones(&self, &Self::SkeletonPtr) -> Self::Iter;
 }
 
-pub struct Entity<R: gfx::Resources, M: phase::Material, W: World> {
+pub struct Entity<R: gfx::Resources, M, W: World, B> {
     pub name: String,
     pub material: M,
     mesh: gfx::Mesh<R>,
     slice: gfx::Slice<R>,
     node: W::NodePtr,
     skeleton: Option<W::SkeletonPtr>,
+    pub bound: B,
 }
 
-impl<R: gfx::Resources, M: phase::Material, W: World> phase::Entity<R, M> for Entity<R, M, W> {
+impl<R: gfx::Resources, M: phase::Material, W: World, B> phase::Entity<R, M> for Entity<R, M, W, B> {
     fn get_material(&self) -> &M {
         &self.material
     }
@@ -62,8 +63,8 @@ pub struct Camera<P, N> {
     pub node: N,
 }
 
-pub struct Scene<R: gfx::Resources, M: phase::Material, W: World, P, V> {
-    pub entities: Vec<Entity<R, M, W>>,
+pub struct Scene<R: gfx::Resources, M, W: World, B, P, V> {
+    pub entities: Vec<Entity<R, M, W, B>>,
     pub cameras: Vec<Camera<P, W::NodePtr>>,
     pub world: W,
     context: gfx::batch::Context<R>,
@@ -74,14 +75,15 @@ impl<
     D: gfx::Device,
     M: phase::Material,
     W: World,
+    B: cgmath::Bound<W::Scalar>,
     P: cgmath::Projection<W::Scalar>,
     V: ViewInfo<W::Scalar, W::Transform>,
-> AbstractScene<D> for Scene<D::Resources, M, W, P, V> {
+> AbstractScene<D> for Scene<D::Resources, M, W, B, P, V> {
     type ViewInfo = V;
-    type Entity = Entity<D::Resources, M, W>;
+    type Entity = Entity<D::Resources, M, W, B>;
     type Camera = Camera<P, W::NodePtr>;
 
-    fn draw<H: phase::AbstractPhase<D, Entity<D::Resources, M, W>, V> + ?Sized>(
+    fn draw<H: phase::AbstractPhase<D, Entity<D::Resources, M, W, B>, V> + ?Sized>(
             &mut self, phase: &mut H, camera: &Camera<P, W::NodePtr>,
             frame: &gfx::Frame<D::Resources>,
             renderer: &mut gfx::Renderer<D::Resources, D::CommandBuffer>)
@@ -93,12 +95,14 @@ impl<
                                .mul_m(&cam_inverse.to_matrix4());
         for entity in self.entities.iter_mut() {
             if !phase.test(entity) {
-                 continue
+                continue
             }
             let model = self.world.get_transform(&entity.node);
             let view = cam_inverse.concat(&model);
             let mvp = projection.mul_m(&model.to_matrix4());
-            //TODO: cull `ent.bounds` here
+            if entity.bound.relate_clip_space(&mvp) == cgmath::Relation::Out {
+                continue
+            }
             let view_info = ViewInfo::new(mvp, view, model.clone());
             match phase.enqueue(entity, view_info, &mut self.context) {
                 Ok(()) => (),
