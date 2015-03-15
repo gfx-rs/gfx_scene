@@ -21,7 +21,7 @@ pub trait Material: PhantomFn<Self> {}
 /// View information that can be transformed into depth.
 pub trait ToDepth {
     /// The type of the depth to convert to.
-    type Depth: Copy + PartialOrd;
+    type Depth: Copy + Debug + PartialOrd;
     /// Convert to depth.
     fn to_depth(&self) -> Self::Depth;
 }

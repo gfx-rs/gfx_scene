@@ -28,8 +28,6 @@ impl Vertex {
     }
 }
 
-// The shader_param attribute makes sure the following struct can be used to
-// pass parameters to a shader.
 #[shader_param]
 #[derive(Clone)]
 struct Params<R: gfx::Resources> {
@@ -66,8 +64,7 @@ struct Technique<R: gfx::Resources> {
 impl<R: gfx::Resources> Technique<R> {
     pub fn new<F: Factory<R>>(factory: &mut F) -> Technique<R> {
         let program = factory.link_program(VERTEX_SRC, FRAGMENT_SRC).unwrap();
-        //let opaque = gfx::DrawState::new().depth(gfx::state::Comparison::LessEqual, true);
-        let opaque = gfx::DrawState::new();
+        let opaque = gfx::DrawState::new().depth(gfx::state::Comparison::LessEqual, true);
         let transparent = opaque.clone().blend(gfx::BlendPreset::Alpha);
         Technique {
             program: program,
@@ -88,7 +85,9 @@ struct SpaceData(cgmath::Matrix4<f32>);
 
 impl gfx_phase::ToDepth for SpaceData {
     type Depth = f32;
-    fn to_depth(&self) -> f32 {0.0}
+    fn to_depth(&self) -> f32 {
+        self.0[3][2] / self.0[3][3]
+    }
 }
 
 impl<R: gfx::Resources> gfx_phase::Technique<R, Material, SpaceData>
@@ -133,8 +132,8 @@ impl<R: gfx::Resources> gfx_phase::Entity<R, Material> for Entity<R> {
 //----------------------------------------
 
 fn main() {
-    let window = glutin::Window::new().unwrap();
-    window.set_title("glutin initialization example");
+    let window = glutin::WindowBuilder::new().with_vsync().build().unwrap();
+    window.set_title("Alpha: gfx_phase example");
     unsafe { window.make_current() };
     let (w, h) = window.get_inner_size().unwrap();
     let frame = gfx::Frame::new(w as u16, h as u16);
@@ -173,7 +172,7 @@ fn main() {
         "Main",
         Technique::new(&mut device),
     );
-    phase.sort.push(gfx_phase::Sort::DrawState);
+    phase.sort.push(gfx_phase::Sort::BackToFront);
 
     let aspect = w as f32 / h as f32;
     let proj = cgmath::perspective(cgmath::deg(90.0f32), aspect, 1.0, 10.0);

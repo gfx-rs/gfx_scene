@@ -166,10 +166,12 @@ impl<
             entity.get_mesh().0, entity.get_material())
             .unwrap(); //TODO?
         let (orig_mesh, slice) = entity.get_mesh();
+        let depth = view_info.to_depth();
         // Try recalling from memory
         match self.memory.lookup(kernel) {
             Some(Ok(mut o)) => {
                 o.slice = slice.clone();
+                o.depth = depth;
                 self.technique.fix_params(entity.get_material(),
                                           &view_info, &mut o.params);
                 self.queue.objects.push(o);
@@ -179,7 +181,6 @@ impl<
             None => ()
         }
         // Compile with the technique
-        let depth = view_info.to_depth();
         let (program, mut params, inst_mesh, state) =
             self.technique.compile(kernel, view_info);
         self.technique.fix_params(entity.get_material(),
