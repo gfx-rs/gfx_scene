@@ -1,8 +1,13 @@
 #![feature(core)]
+#![deny(missing_docs)]
+
+//! Generic draw queue that keeps item ordering, supposedly minimizing
+//! the sorting time per frame by exploiting temporal coherency.
 
 type IdType = u32;
 struct Id<T>(IdType, std::marker::PhantomData<T>);
 
+/// Iterator over queue objects.
 pub struct QueueIter<'a, T: 'a> {
     objects: &'a [T],
     id_iter: std::slice::Iter<'a, Id<T>>,
@@ -18,12 +23,15 @@ impl<'a, T> Iterator for QueueIter<'a, T> {
     }
 }
 
+/// Generic draw queue.
 pub struct Queue<T> {
+    /// Exposed objects list that can be modified directly with no harm.
     pub objects: Vec<T>,
     indices: Vec<Id<T>>,
 }
 
 impl<T> Queue<T> {
+    /// Create an empty queue.
     pub fn new() -> Queue<T> {
         Queue {
             objects: Vec::new(),
@@ -35,6 +43,7 @@ impl<T> Queue<T> {
         self.objects.len() == self.indices.len()
     }
 
+    /// Synchronize the indices with objects.
     pub fn update(&mut self) {
         let ni = self.indices.len();
         if self.objects.len() > ni {
@@ -48,6 +57,7 @@ impl<T> Queue<T> {
         debug_assert!(self.is_ready());
     }
 
+    /// Sort the draw queue.
     pub fn sort<F: Sized + Fn(&T, &T) -> std::cmp::Ordering>(&mut self, fun: F) {
         self.update();
         let objects = self.objects.as_slice();
@@ -56,6 +66,7 @@ impl<T> Queue<T> {
         );
     }
 
+    /// Iterate over sorted objects.
     pub fn iter<'a>(&'a self) -> QueueIter<'a, T> {
         assert!(self.is_ready());
         QueueIter {
