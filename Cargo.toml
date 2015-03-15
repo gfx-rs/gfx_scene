@@ -35,6 +35,13 @@ git = "https://github.com/gfx-rs/gfx_device_gl"
 [dev_dependencies.glutin]
 git = "https://github.com/tomaka/glutin"
 
+[dev_dependencies]
+draw_state = "*"
+
 [[example]]
 name = "alpha"
 path = "examples/alpha/main.rs"
+
+[[example]]
+name = "beta"
+path = "examples/beta/main.rs"
