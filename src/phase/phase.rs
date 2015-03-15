@@ -1,3 +1,5 @@
+//! Phase infrastructure for Gfx.
+
 extern crate draw_queue;
 
 use std::cmp::Ordering;
@@ -5,20 +7,21 @@ use std::collections::HashMap;
 use gfx;
 use mem;
 
+/// Potential error occuring during rendering.
 pub type FlushError = gfx::DrawError<gfx::batch::OutOfBounds>;
 
-/// An aspect of the phase to allow flushing into a Renderer
+/// An aspect of the phase to allow flushing into a Renderer.
 pub trait FlushPhase<R: gfx::Resources, C: gfx::CommandBuffer<R>> {
-    /// Flush the queue into a given renderer
+    /// Flush the queue into a given renderer.
     fn flush(&mut self, &gfx::Frame<R>, &gfx::batch::Context<R>,
              &mut gfx::Renderer<R, C>) -> Result<(), FlushError>;
 }
 
-/// An aspect of the phase that allows queuing entities for rendering
+/// An aspect of the phase that allows queuing entities for rendering.
 pub trait QueuePhase<R: gfx::Resources, E, V: ::ToDepth> {
-    /// Check if it makes sense to draw this entity
+    /// Check if it makes sense to draw this entity.
     fn test(&self, &E) -> bool;
-    /// Add an entity to the queue
+    /// Add an entity to the queue.
     fn enqueue(&mut self, &E, V, &mut gfx::batch::Context<R>)
                -> Result<(), gfx::batch::Error>;
 }
@@ -57,11 +60,21 @@ impl<S: PartialOrd, P: gfx::shade::ShaderParam> Object<S, P> {
     }
 }
 
+/// Type of phase sorting.
 pub enum Sort {
+    /// Sort by depth, front-to-back. Useful for opaque objects that updates
+    /// the depth buffer. The front stuff will occlude more pixels, leaving
+    /// less work to be done for the farther objects.
     FrontToBack,
+    /// Sort by depth, back-to-front. Useful for transparent objects, since
+    /// blending should take into account everything that lies behind.
     BackToFront,
+    /// Sort by shader program. Switching a program is one of the heaviest
+    /// state changes, so this variant is useful when the order is not important.
     Program,
+    /// Sort by mesh. Allows minimizing the vertex format changes.
     Mesh,
+    /// Sort by draw state.
     DrawState,
 }
 
@@ -74,10 +87,15 @@ pub struct Phase<
     T: ::Technique<R, M, V>,
     Y,  // Memory
 >{
+    /// Phase name.
     pub name: String,
+    /// Contained technique.
     pub technique: T,
+    /// Phase memory.
     memory: Y,
+    /// Sorting criteria vector. The first element has the highest priority. 
     pub sort: Vec<Sort>,
+    /// Internal draw queue.
     queue: draw_queue::Queue<Object<V::Depth, T::Params>>,
 }
 
@@ -87,6 +105,7 @@ impl<
     V: ::ToDepth,
     T: ::Technique<R, M, V>,
 > Phase<R, M, V, T, ()> {
+    /// Create a new phase from a given technique.
     pub fn new(name: &str, tech: T) -> Phase<R, M, V, T, ()> {
         Phase {
             name: name.to_string(),
@@ -98,6 +117,7 @@ impl<
     }
 }
 
+/// Memory typedef using a `HashMap`.
 pub type CacheMap<
     R: gfx::Resources,
     M: ::Material,
@@ -111,6 +131,7 @@ impl<
     V: ::ToDepth,
     T: ::Technique<R, M, V>,
 > Phase<R, M, V, T, CacheMap<R, M, V, T>> {
+    /// Create a new phase that caches created objects.
     pub fn new_cached(name: &str, tech: T) -> Phase<R, M, V, T, CacheMap<R, M, V, T>> {
         Phase {
             name: name.to_string(),

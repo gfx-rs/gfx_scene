@@ -24,7 +24,7 @@ pub trait ViewInfo<S, T: cgmath::Transform3<S>>: phase::ToDepth<Depth = S> {
     fn new(mvp: cgmath::Matrix4<S>, view: T, model: T) -> Self;
 }
 
-/// Abstract scene that can be drawn into something
+/// Abstract scene that can be drawn into something.
 pub trait AbstractScene<D: gfx::Device> {
     /// A type of the view information.
     type ViewInfo;
@@ -40,7 +40,7 @@ pub trait AbstractScene<D: gfx::Device> {
             &mut gfx::Renderer<D::Resources, D::CommandBuffer>) -> Result<(), Error>;
 }
 
-/// A class that manages spatial relations between objects
+/// A class that manages spatial relations between objects.
 pub trait World {
     /// Type of the scalar used in all associated mathematical constructs.
     type Scalar: cgmath::BaseFloat + 'static;
