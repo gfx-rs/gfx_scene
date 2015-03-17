@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/kvark/gfx_scene_meta.png?branch=master)](https://travis-ci.org/kvark/gfx_scene_meta)
+[![Build Status](https://travis-ci.org/kvark/gfx_scene.png?branch=master)](https://travis-ci.org/kvark/gfx_scene)
 
 ## High-level rendering with gfx-rs 
 
