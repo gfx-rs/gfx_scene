@@ -22,6 +22,7 @@ The repository contains `gfx_phase` and `gfx_scene` crates for different levels 
     - phases
     - scenes with frustum culling
   3. `gfx_pipeline` and `claymore`
-    - forward/deferred/other pipelines
     - world implementation
+    - forward/deferred/other pipelines
+    - PBR/Phong/cartoon materials
     - asset export and loading

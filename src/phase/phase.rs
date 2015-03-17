@@ -125,6 +125,14 @@ pub type CacheMap<
     T: ::Technique<R, M, V>,
 > = HashMap<T::Kernel, mem::MemResult<Object<V::Depth, T::Params>>>;
 
+/// A render phase that caches created render objects.
+pub type CachedPhase<
+    R: gfx::Resources,
+    M: ::Material,
+    V: ::ToDepth,
+    T: ::Technique<R, M, V>,
+> = Phase<R, M, V, T, CacheMap<R, M, V, T>>;
+
 impl<
     R: gfx::Resources,
     M: ::Material,
@@ -132,7 +140,7 @@ impl<
     T: ::Technique<R, M, V>,
 > Phase<R, M, V, T, CacheMap<R, M, V, T>> {
     /// Create a new phase that caches created objects.
-    pub fn new_cached(name: &str, tech: T) -> Phase<R, M, V, T, CacheMap<R, M, V, T>> {
+    pub fn new_cached(name: &str, tech: T) -> CachedPhase<R, M, V, T> {
         Phase {
             name: name.to_string(),
             technique: tech,

@@ -13,7 +13,7 @@ use std::hash::Hash;
 use std::marker::PhantomFn;
 
 pub use self::phase::{FlushError, QueuePhase, FlushPhase,
-                      AbstractPhase, Sort, Phase};
+                      AbstractPhase, Sort, Phase, CachedPhase};
 
 /// Abstract material.
 pub trait Material: PhantomFn<Self> {}
