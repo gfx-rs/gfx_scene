@@ -67,10 +67,14 @@ pub struct Entity<R: gfx::Resources, M, W: World, B> {
     pub name: String,
     /// Assotiated material of the entity.
     pub material: M,
-    mesh: gfx::Mesh<R>,
-    slice: gfx::Slice<R>,
-    node: W::NodePtr,
-    skeleton: Option<W::SkeletonPtr>,
+    /// Mesh.
+    pub mesh: gfx::Mesh<R>,
+    /// Mesh slice.
+    pub slice: gfx::Slice<R>,
+    /// Node pointer into the world.
+    pub node: W::NodePtr,
+    /// Skeleton pointer.
+    pub skeleton: Option<W::SkeletonPtr>,
     /// Associated spatial bound of the entity.
     pub bound: B,
 }
@@ -164,6 +168,19 @@ pub struct Scene<R: gfx::Resources, M, W: World, B, P, V> {
     _view_dummy: PhantomData<V>,
 }
 
+impl<R: gfx::Resources, M, W: World, B, P, V> Scene<R, M, W, B, P, V> {
+    /// Create a new empty scene.
+    pub fn new(world: W) -> Scene<R, M, W, B, P, V> {
+        Scene {
+            entities: Vec::new(),
+            cameras: Vec::new(),
+            world: world,
+            context: gfx::batch::Context::new(),
+            _view_dummy: PhantomData,
+        }
+    }
+}
+
 impl<
     D: gfx::Device,
     M: phase::Material,
@@ -191,6 +208,8 @@ impl<
 pub struct PhaseHarness<D: gfx::Device, C: AbstractScene<D>> {
     /// Wrapped scene.
     pub scene: C,
+    /// Optional clear data.
+    pub clear: Option<gfx::ClearData>,
     /// List of phases as trait objects.
     pub phases: Vec<Box<phase::AbstractPhase<D, C::Entity, C::ViewInfo>>>,
     /// Gfx renderer to draw into.
@@ -201,18 +220,33 @@ impl<
     D: gfx::Device,
     C: AbstractScene<D>,
 > PhaseHarness<D, C> {
+    /// Create a new empty phase harness.
+    pub fn new(scene: C, renderer: gfx::Renderer<D::Resources, D::CommandBuffer>)
+               -> PhaseHarness<D, C> {
+        PhaseHarness {
+            scene: scene,
+            clear: None,
+            phases: Vec::new(),
+            renderer: renderer,
+        }
+    }
+
     /// Draw the scene into a given frame, using all the phases. 
     pub fn draw(&mut self, camera: &C::Camera, frame: &gfx::Frame<D::Resources>)
-                -> Result<(), Error> {
+                -> Result<gfx::SubmitInfo<D>, Error> {
         use std::ops::DerefMut;
         self.renderer.reset();
+        match self.clear {
+            Some(data) => self.renderer.clear(data, gfx::COLOR | gfx::DEPTH | gfx::STENCIL, frame),
+            None => (),
+        }
         for phase in self.phases.iter_mut() {
             match self.scene.draw(phase.deref_mut(), camera, frame, &mut self.renderer) {
                 Ok(_) => (),
                 Err(e) => return Err(e),
             }
         }
-        Ok(()) //TODO: return a command buffer?
+        Ok(self.renderer.as_buffer())
     }
 }
 

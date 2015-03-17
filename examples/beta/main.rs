@@ -5,11 +5,10 @@ extern crate cgmath;
 extern crate glutin;
 extern crate gfx;
 extern crate gfx_device_gl;
-extern crate draw_state;
 extern crate gfx_phase;
+extern crate gfx_scene;
 
 use gfx::traits::*;
-use gfx_phase::{QueuePhase, FlushPhase};
 
 #[vertex_format]
 #[derive(Copy)]
@@ -74,14 +73,14 @@ struct Material;
 impl gfx_phase::Material for Material {}
 
 #[derive(Copy)]
-struct SpaceData(cgmath::Vector2<f32>);
+struct ViewInfo(cgmath::Vector2<f32>);
 
-impl gfx_phase::ToDepth for SpaceData {
+impl gfx_phase::ToDepth for ViewInfo {
     type Depth = f32;
     fn to_depth(&self) -> f32 {0.0}
 }
 
-impl<R: gfx::Resources> gfx_phase::Technique<R, Material, SpaceData>
+impl<R: gfx::Resources> gfx_phase::Technique<R, Material, ViewInfo>
 for Technique<R> {
     type Kernel = ();
     type Params = Params<R>;
@@ -90,7 +89,7 @@ for Technique<R> {
         Some(())
     }
 
-    fn compile<'a>(&'a self, _: (), _: SpaceData)
+    fn compile<'a>(&'a self, _: (), _: ViewInfo)
                    -> gfx_phase::TechResult<'a, R, Params<R>> {
         (   &self.program,
             Params {
@@ -103,21 +102,59 @@ for Technique<R> {
         )
     }
 
-    fn fix_params(&self, _: &Material, space: &SpaceData, params: &mut Params<R>) {
+    fn fix_params(&self, _: &Material, space: &ViewInfo, params: &mut Params<R>) {
         use cgmath::FixedArray;
         params.offset = *space.0.as_fixed();
     }
 }
 
-struct Entity<R: gfx::Resources> {
-    mesh: gfx::Mesh<R>,
-    slice: gfx::Slice<R>,
-    material: Material,
+//----------------------------------------
+
+type Transform<S> = cgmath::Decomposed<S, cgmath::Vector3<S>, cgmath::Quaternion<S>>;
+
+impl gfx_scene::ViewInfo<f32, Transform<f32>> for ViewInfo {
+    fn new(_: cgmath::Matrix4<f32>, _: Transform<f32>, model: Transform<f32>) -> ViewInfo {
+        ViewInfo(cgmath::Vector2::new(model.disp.x, model.disp.y))
+    }
 }
 
-impl<R: gfx::Resources> gfx_phase::Entity<R, Material> for Entity<R> {
-    fn get_material(&self) -> &Material { &self.material }
-    fn get_mesh(&self) -> (&gfx::Mesh<R>, &gfx::Slice<R>) { (&self.mesh, &self.slice) }
+
+struct World {
+    transforms: Vec<Transform<f32>>,
+}
+
+impl World {
+    pub fn new() -> World {
+        World {
+            transforms: Vec::new(),
+        }
+    }
+    pub fn add(&mut self, offset: cgmath::Vector2<f32>) -> u8 {
+        let id = self.transforms.len();
+        self.transforms.push(cgmath::Decomposed {
+            scale: 1.0,
+            rot: cgmath::Quaternion::identity(),
+            disp: cgmath::vec3(offset.x, offset.y, 0.0),
+        });
+        id as u8
+    }
+}
+
+impl gfx_scene::World for World {
+    type Scalar = f32;
+    type Rotation = cgmath::Quaternion<f32>;
+    type Transform = Transform<f32>;
+    type NodePtr = u8;
+    type SkeletonPtr = ();
+    type Iter = std::option::IntoIter<Transform<f32>>;
+
+    fn get_transform(&self, node: &u8) -> &Transform<f32> {
+        &self.transforms[*node as usize]
+    }
+
+    fn iter_bones(&self, _: &()) -> std::option::IntoIter<Transform<f32>> {
+        None.into_iter()
+    }
 }
 
 //----------------------------------------
@@ -127,11 +164,9 @@ fn main() {
     window.set_title("Beta: gfx_scene example");
     unsafe { window.make_current() };
     let (w, h) = window.get_inner_size().unwrap();
-    let frame = gfx::Frame::new(w as u16, h as u16);
 
+    let frame = gfx::Frame::new(w as u16, h as u16);
     let mut device = gfx_device_gl::GlDevice::new(|s| window.get_proc_address(s));
-    let mut renderer = device.create_renderer();
-    let mut context = gfx::batch::Context::new();
 
     let vertex_data = [
         Vertex::new(0, 1),
@@ -143,22 +178,49 @@ fn main() {
     let mesh = device.create_mesh(&vertex_data);
     let slice = mesh.to_slice(gfx::PrimitiveType::TriangleStrip);
 
-    let entities: Vec<_> = (0..10).map(|_| Entity {
-        mesh: mesh.clone(),
-        slice: slice.clone(),
-        material: Material,
-    }).collect();
+    let mut scene = gfx_scene::Scene::new(World::new());
+    let num = 10usize;
+    let entities = (0..num).map(|i| {
+        use std::num::Float;
+        use cgmath::{Aabb3, Point3, vec2};
+        let angle = (i as f32) / (num as f32) * std::f32::consts::PI * 2.0;
+        let offset = vec2(4.0 * angle.cos(), 4.0 * angle.sin());
+        gfx_scene::Entity {
+            name: format!("entity-{}", i),
+            material: Material,
+            mesh: mesh.clone(),
+            slice: slice.clone(),
+            node: scene.world.add(offset),
+            skeleton: None,
+            bound: Aabb3::new(Point3::new(0f32, 0.0, 0.0), Point3::new(1.0, 1.0, 0.0)),
+        }
+    }).collect::<Vec<_>>();
+    scene.entities.extend(entities.into_iter());
+
+    let mut harness = gfx_scene::PhaseHarness::<gfx_device_gl::GlDevice, _>::
+        new(scene, device.create_renderer());
 
     let mut phase = gfx_phase::Phase::new_cached(
         "Main",
         Technique::new(&mut device),
     );
     phase.sort.push(gfx_phase::Sort::Program);
+    harness.phases.push(Box::new(phase));
 
-    let clear_data = gfx::ClearData {
+    harness.clear = Some(gfx::ClearData {
         color: [0.3, 0.3, 0.3, 1.0],
         depth: 1.0,
         stencil: 0,
+    });
+
+    let camera = gfx_scene::Camera {
+        name: "Cam".to_string(),
+        projection: cgmath::Ortho {
+            left: -1f32, right: 1f32,
+            bottom: -1f32, top: 1f32,
+            near: -1f32, far: 1f32,
+        },
+        node: harness.scene.world.add(cgmath::Vector2::new(0.0, 0.0)),
     };
 
     'main: loop {
@@ -171,20 +233,9 @@ fn main() {
             }
         }
         
-        renderer.reset();
-        renderer.clear(clear_data, gfx::COLOR, &frame);
-
-        for (i, ent) in entities.iter().enumerate() {
-            use std::num::Float;
-            use cgmath::vec2;
-            let angle = (i as f32) / (entities.len() as f32) * std::f32::consts::PI * 2.0;
-            let offset = vec2(4.0 * angle.cos(), 4.0 * angle.sin());
-            let space_data = SpaceData(offset);
-            phase.enqueue(ent, space_data, &mut context).unwrap();
-        }
-        phase.flush(&frame, &mut context, &mut renderer).unwrap();
+        let buf = harness.draw(&camera, &frame).unwrap();
         
-        device.submit(renderer.as_buffer());
+        device.submit(buf);
         window.swap_buffers();
         device.after_frame();
     }
