@@ -6,6 +6,7 @@ extern crate "gfx_phase" as phase;
 extern crate gfx;
 extern crate cgmath;
 
+use std::fmt::Debug;
 use std::marker::PhantomData;
 
 /// Scene drawing error.
@@ -105,15 +106,15 @@ pub fn draw_entities<'a,
     C: gfx::CommandBuffer<R>,
     M: phase::Material + 'a,
     W: World + 'a,
-    B: cgmath::Bound<W::Scalar> + 'a,
+    B: cgmath::Bound<W::Scalar> + Debug + 'a,
     H: phase::AbstractPhase<R, C, Entity<R, M, W, B>, V> + ?Sized,
     P: cgmath::Projection<W::Scalar>,
     V: ViewInfo<W::Scalar, W::Transform>,
     I: Iterator<Item = &'a mut Entity<R, M, W, B>>,
 >
 (   entities: I, phase: &mut H, world: &W, camera: &Camera<P, W::NodePtr>,
-    frame: &gfx::Frame<R>, context: &mut gfx::batch::Context<R>,
-    renderer: &mut gfx::Renderer<R, C>)
+    cull_frustum: bool, frame: &gfx::Frame<R>,
+    context: &mut gfx::batch::Context<R>, renderer: &mut gfx::Renderer<R, C>)
     -> Result<(), Error>
 where
     R: 'a,
@@ -143,7 +144,7 @@ where
         let model = world.get_transform(&entity.node);
         let view = cam_inverse.concat(&model);
         let mvp = projection.mul_m(&model.to_matrix4());
-        if entity.bound.relate_clip_space(&mvp) == cgmath::Relation::Out {
+        if cull_frustum && entity.bound.relate_clip_space(&mvp) == cgmath::Relation::Out {
             continue
         }
         let view_info = ViewInfo::new(mvp, view, model.clone());
@@ -162,6 +163,8 @@ pub struct Scene<R: gfx::Resources, M, W: World, B, P, V> {
     pub entities: Vec<Entity<R, M, W, B>>,
     /// A list of cameras.
     pub cameras: Vec<Camera<P, W::NodePtr>>,
+    /// A flag controlling the frustum culling.
+    pub cull_frustum: bool,
     /// Spatial world.
     pub world: W,
     context: gfx::batch::Context<R>,
@@ -174,6 +177,7 @@ impl<R: gfx::Resources, M, W: World, B, P, V> Scene<R, M, W, B, P, V> {
         Scene {
             entities: Vec::new(),
             cameras: Vec::new(),
+            cull_frustum: true,
             world: world,
             context: gfx::batch::Context::new(),
             _view_dummy: PhantomData,
@@ -185,7 +189,7 @@ impl<
     R: gfx::Resources,
     M: phase::Material,
     W: World,
-    B: cgmath::Bound<W::Scalar>,
+    B: cgmath::Bound<W::Scalar> + Debug,
     P: cgmath::Projection<W::Scalar>,
     V: ViewInfo<W::Scalar, W::Transform>,
 > AbstractScene<R> for Scene<R, M, W, B, P, V> {
@@ -198,7 +202,7 @@ impl<
             frame: &gfx::Frame<R>, renderer: &mut gfx::Renderer<R, C>)
             -> Result<(), Error> {
         draw_entities(self.entities.iter_mut(), phase, &self.world, camera,
-                     frame, &mut self.context, renderer)
+                      self.cull_frustum, frame, &mut self.context, renderer)
     }
 }
 

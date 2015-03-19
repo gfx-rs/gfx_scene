@@ -179,6 +179,7 @@ fn main() {
     let slice = mesh.to_slice(gfx::PrimitiveType::TriangleStrip);
 
     let mut scene = gfx_scene::Scene::new(World::new());
+    //scene.cull_frustum = false;
     let num = 10usize;
     let entities = (0..num).map(|i| {
         use std::num::Float;
@@ -217,8 +218,8 @@ fn main() {
     let camera = gfx_scene::Camera {
         name: "Cam".to_string(),
         projection: cgmath::Ortho {
-            left: -1f32, right: 1f32,
-            bottom: -1f32, top: 1f32,
+            left: -10f32, right: 10f32,
+            bottom: -10f32, top: 10f32,
             near: -1f32, far: 1f32,
         },
         //node: harness.scene.world.add(cgmath::Vector2::new(0.0, 0.0)),
