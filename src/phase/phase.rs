@@ -28,9 +28,9 @@ pub trait QueuePhase<R: gfx::Resources, E, V: ::ToDepth> {
 
 /// An abstract phase. Needs to be object-safe as phases should be
 /// allowed to be stored in boxed form in containers.
-pub trait AbstractPhase<D: gfx::Device, E, V: ::ToDepth>:
-    QueuePhase<D::Resources, E, V> +
-    FlushPhase<D::Resources, D::CommandBuffer>
+pub trait AbstractPhase<R: gfx::Resources, C: gfx::CommandBuffer<R>, E, V: ::ToDepth>:
+    QueuePhase<R, E, V> +
+    FlushPhase<R, C>
 {}
 
 struct Object<S, P: gfx::shade::ShaderParam> {
@@ -257,13 +257,14 @@ impl<
 }
 
 impl<
-    D: gfx::Device,
+    R: gfx::Resources,
+    C: gfx::CommandBuffer<R>,
     M: ::Material,
     V: ::ToDepth + Copy,
-    E: ::Entity<D::Resources, M>,
-    T: ::Technique<D::Resources, M, V>,
+    E: ::Entity<R, M>,
+    T: ::Technique<R, M, V>,
     Y: mem::Memory<T::Kernel, Object<V::Depth, T::Params>>,
->AbstractPhase<D, E, V> for Phase<D::Resources, M, V, T, Y> where
+>AbstractPhase<R, C, E, V> for Phase<R, M, V, T, Y> where
     T::Params: Clone,
     <T::Params as gfx::shade::ShaderParam>::Link: Copy,
 {}

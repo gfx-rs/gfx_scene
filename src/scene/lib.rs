@@ -25,7 +25,7 @@ pub trait ViewInfo<S, T: cgmath::Transform3<S>>: phase::ToDepth<Depth = S> {
 }
 
 /// Abstract scene that can be drawn into something.
-pub trait AbstractScene<D: gfx::Device> {
+pub trait AbstractScene<R: gfx::Resources> {
     /// A type of the view information.
     type ViewInfo;
     /// A type of the entity.
@@ -35,9 +35,8 @@ pub trait AbstractScene<D: gfx::Device> {
 
     /// Draw the contents of the scene with a specific phase into a renderer,
     /// using a given camera and a frame.
-    fn draw<H: phase::AbstractPhase<D, Self::Entity, Self::ViewInfo> + ?Sized>(
-            &mut self, &mut H, &Self::Camera, &gfx::Frame<D::Resources>,
-            &mut gfx::Renderer<D::Resources, D::CommandBuffer>) -> Result<(), Error>;
+    fn draw<C: gfx::CommandBuffer<R>, H: phase::AbstractPhase<R, C, Self::Entity, Self::ViewInfo> + ?Sized>(
+            &mut self, &mut H, &Self::Camera, &gfx::Frame<R>, &mut gfx::Renderer<R, C>) -> Result<(), Error>;
 }
 
 /// A class that manages spatial relations between objects.
@@ -102,29 +101,30 @@ pub struct Camera<P, N> {
 /// into a given frame. It does frustum culling and `ViewInfo` construction.
 /// It can be used as a helper for user-side scenes.
 pub fn draw_entities<'a,
-    D: gfx::Device,
+    R: gfx::Resources,
+    C: gfx::CommandBuffer<R>,
     M: phase::Material + 'a,
     W: World + 'a,
     B: cgmath::Bound<W::Scalar> + 'a,
-    H: phase::AbstractPhase<D, Entity<D::Resources, M, W, B>, V> + ?Sized,
+    H: phase::AbstractPhase<R, C, Entity<R, M, W, B>, V> + ?Sized,
     P: cgmath::Projection<W::Scalar>,
     V: ViewInfo<W::Scalar, W::Transform>,
-    I: Iterator<Item = &'a mut Entity<D::Resources, M, W, B>>,
+    I: Iterator<Item = &'a mut Entity<R, M, W, B>>,
 >
 (   entities: I, phase: &mut H, world: &W, camera: &Camera<P, W::NodePtr>,
-    frame: &gfx::Frame<D::Resources>, context: &mut gfx::batch::Context<D::Resources>,
-    renderer: &mut gfx::Renderer<D::Resources, D::CommandBuffer>)
+    frame: &gfx::Frame<R>, context: &mut gfx::batch::Context<R>,
+    renderer: &mut gfx::Renderer<R, C>)
     -> Result<(), Error>
 where
-    D::Resources: 'a,
-    <D::Resources as gfx::Resources>::Buffer: 'a,
-    <D::Resources as gfx::Resources>::ArrayBuffer: 'a,
-    <D::Resources as gfx::Resources>::Shader: 'a,
-    <D::Resources as gfx::Resources>::Program: 'a,
-    <D::Resources as gfx::Resources>::FrameBuffer: 'a,
-    <D::Resources as gfx::Resources>::Surface: 'a,
-    <D::Resources as gfx::Resources>::Texture: 'a,
-    <D::Resources as gfx::Resources>::Sampler: 'a,
+    R: 'a,
+    R::Buffer: 'a,
+    R::ArrayBuffer: 'a,
+    R::Shader: 'a,
+    R::Program: 'a,
+    R::FrameBuffer: 'a,
+    R::Surface: 'a,
+    R::Texture: 'a,
+    R::Sampler: 'a,
     W::Rotation: 'a,
     W::Transform: 'a,
     W::NodePtr: 'a,
@@ -182,21 +182,20 @@ impl<R: gfx::Resources, M, W: World, B, P, V> Scene<R, M, W, B, P, V> {
 }
 
 impl<
-    D: gfx::Device,
+    R: gfx::Resources,
     M: phase::Material,
     W: World,
     B: cgmath::Bound<W::Scalar>,
     P: cgmath::Projection<W::Scalar>,
     V: ViewInfo<W::Scalar, W::Transform>,
-> AbstractScene<D> for Scene<D::Resources, M, W, B, P, V> {
+> AbstractScene<R> for Scene<R, M, W, B, P, V> {
     type ViewInfo = V;
-    type Entity = Entity<D::Resources, M, W, B>;
+    type Entity = Entity<R, M, W, B>;
     type Camera = Camera<P, W::NodePtr>;
 
-    fn draw<H: phase::AbstractPhase<D, Entity<D::Resources, M, W, B>, V> + ?Sized>(
+    fn draw<C: gfx::CommandBuffer<R>, H: phase::AbstractPhase<R, C, Entity<R, M, W, B>, V> + ?Sized>(
             &mut self, phase: &mut H, camera: &Camera<P, W::NodePtr>,
-            frame: &gfx::Frame<D::Resources>,
-            renderer: &mut gfx::Renderer<D::Resources, D::CommandBuffer>)
+            frame: &gfx::Frame<R>, renderer: &mut gfx::Renderer<R, C>)
             -> Result<(), Error> {
         draw_entities(self.entities.iter_mut(), phase, &self.world, camera,
                      frame, &mut self.context, renderer)
@@ -205,21 +204,18 @@ impl<
 
 /// Wrapper around a scene that carries a list of phases as well as the
 /// `Renderer`, allowing to isolate a command buffer completely.
-pub struct PhaseHarness<D: gfx::Device, C: AbstractScene<D>> {
+pub struct PhaseHarness<D: gfx::Device, C: AbstractScene<D::Resources>> {
     /// Wrapped scene.
     pub scene: C,
     /// Optional clear data.
     pub clear: Option<gfx::ClearData>,
     /// List of phases as trait objects.
-    pub phases: Vec<Box<phase::AbstractPhase<D, C::Entity, C::ViewInfo>>>,
+    pub phases: Vec<Box<phase::AbstractPhase<D::Resources, D::CommandBuffer, C::Entity, C::ViewInfo>>>,
     /// Gfx renderer to draw into.
     pub renderer: gfx::Renderer<D::Resources, D::CommandBuffer>,
 }
 
-impl<
-    D: gfx::Device,
-    C: AbstractScene<D>,
-> PhaseHarness<D, C> {
+impl<D: gfx::Device, C: AbstractScene<D::Resources>> PhaseHarness<D, C> {
     /// Create a new empty phase harness.
     pub fn new(scene: C, renderer: gfx::Renderer<D::Resources, D::CommandBuffer>)
                -> PhaseHarness<D, C> {

@@ -197,21 +197,22 @@ fn main() {
     }).collect::<Vec<_>>();
     scene.entities.extend(entities.into_iter());
 
-    let mut harness = gfx_scene::PhaseHarness::<gfx_device_gl::GlDevice, _>::
-        new(scene, device.create_renderer());
+    //let mut harness = gfx_scene::PhaseHarness::<gfx_device_gl::GlDevice, _>::
+    //    new(scene, device.create_renderer());
 
     let mut phase = gfx_phase::Phase::new_cached(
         "Main",
         Technique::new(&mut device),
     );
     phase.sort.push(gfx_phase::Sort::Program);
-    harness.phases.push(Box::new(phase));
+    //harness.phases.push(Box::new(phase));
 
-    harness.clear = Some(gfx::ClearData {
+    let clear_data = gfx::ClearData {
         color: [0.3, 0.3, 0.3, 1.0],
         depth: 1.0,
         stencil: 0,
-    });
+    };
+    //harness.clear = Some(clear_data);
 
     let camera = gfx_scene::Camera {
         name: "Cam".to_string(),
@@ -220,10 +221,12 @@ fn main() {
             bottom: -1f32, top: 1f32,
             near: -1f32, far: 1f32,
         },
-        node: harness.scene.world.add(cgmath::Vector2::new(0.0, 0.0)),
+        //node: harness.scene.world.add(cgmath::Vector2::new(0.0, 0.0)),
+        node: scene.world.add(cgmath::Vector2::new(0.0, 0.0))
     };
 
     'main: loop {
+        use gfx_scene::AbstractScene;
         // quit when Esc is pressed.
         for event in window.poll_events() {
             match event {
@@ -233,9 +236,13 @@ fn main() {
             }
         }
         
-        let buf = harness.draw(&camera, &frame).unwrap();
-        
-        device.submit(buf);
+        //let buf = harness.draw(&camera, &frame).unwrap();
+        let mut renderer = device.create_renderer();
+        renderer.clear(clear_data, gfx::COLOR | gfx::DEPTH, &frame);
+        scene.draw(&mut phase, &camera, &frame, &mut renderer).unwrap();
+        device.submit(renderer.as_buffer());
+
+        //device.submit(buf);
         window.swap_buffers();
         device.after_frame();
     }
