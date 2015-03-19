@@ -1,6 +1,15 @@
 [![Build Status](https://travis-ci.org/kvark/gfx_scene.png?branch=master)](https://travis-ci.org/kvark/gfx_scene)
 
-## High-level rendering with gfx-rs 
+## Why high-level rendering?
+
+gfx-rs established a solid basis for API abstraction and safe bind-less draw calls. While is used by simpler apps directly, more complex ones are expected to operate on a higher level. Some elements of this level, like materials, are extremely diverse. Others can be implemented in a rather common way:
+  - composing batches from their components
+  - batch sorting
+  - frustum culling
+
+`gfx_scene` provides a set of abstractions that allow constructing your own rendering systems while having this essential logic implemented automatically. Standard implementations of known rendering pipelines, default scene loaders, and established material models are supposed to follow.
+
+## What is gfx_scene?
 
 High-level rendering and scene management for gfx-rs. A typical application is supposed to:
   - define one or more types of materials
@@ -11,7 +20,7 @@ High-level rendering and scene management for gfx-rs. A typical application is s
 
 The repository contains `gfx_phase` and `gfx_scene` crates for different levels of abstractions.
 
-## The Plan
+## The plan
 
   1. `gfx-rs`
   	- device abstraction
