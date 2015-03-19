@@ -10,6 +10,8 @@ extern crate gfx_scene;
 
 use gfx::traits::*;
 
+static SCALE: f32 = 10.0;
+
 #[vertex_format]
 #[derive(Copy)]
 struct Vertex {
@@ -31,6 +33,7 @@ impl Vertex {
 struct Params<R: gfx::Resources> {
     offset: [f32; 2],
     color: [f32; 4],
+    scale: f32,
     _dummy: std::marker::PhantomData<R>,
 }
 
@@ -38,8 +41,9 @@ static VERTEX_SRC: &'static [u8] = b"
     #version 120
     attribute vec2 a_Pos;
     uniform vec2 offset;
+    uniform float scale;
     void main() {
-        vec2 pos = (a_Pos + offset)/10.0;
+        vec2 pos = (a_Pos + offset)/scale;
         gl_Position = vec4(pos, 0.0, 1.0);
     }
 ";
@@ -95,6 +99,7 @@ for Technique<R> {
             Params {
                 offset: [0.0; 2],
                 color: [0.4, 0.5, 0.6, 0.0],
+                scale: SCALE,
                 _dummy: std::marker::PhantomData,
             },
             None,
@@ -218,8 +223,8 @@ fn main() {
     let camera = gfx_scene::Camera {
         name: "Cam".to_string(),
         projection: cgmath::Ortho {
-            left: -10f32, right: 10f32,
-            bottom: -10f32, top: 10f32,
+            left: -SCALE, right: SCALE,
+            bottom: -SCALE, top: SCALE,
             near: -1f32, far: 1f32,
         },
         //node: harness.scene.world.add(cgmath::Vector2::new(0.0, 0.0)),
