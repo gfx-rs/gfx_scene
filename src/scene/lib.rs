@@ -52,12 +52,8 @@ pub trait World {
     type NodePtr;
     /// Pointer to a skeleton, associated with an enttity.
     type SkeletonPtr;
-    /// Iterator over transformations, used for walking the bones.
-    type Iter: Iterator<Item = Self::Transform>;
-    /// Get the transfrormation of a specific node pointer.
-    fn get_transform(&self, &Self::NodePtr) -> &Self::Transform;
-    /// Iterate over the bones of a specific skeleton.
-    fn iter_bones(&self, &Self::SkeletonPtr) -> Self::Iter;
+    /// Get the transformation of a specific node pointer.
+    fn get_transform(&self, &Self::NodePtr) -> Self::Transform;
 }
 
 /// A simple struct representing an object with a given material, mesh, bound,
@@ -130,7 +126,6 @@ where
     W::Transform: 'a,
     W::NodePtr: 'a,
     W::SkeletonPtr: 'a,
-    W::Iter: 'a,
 {
     use cgmath::{Matrix, ToMatrix4, Transform};
     let cam_inverse = world.get_transform(&camera.node)

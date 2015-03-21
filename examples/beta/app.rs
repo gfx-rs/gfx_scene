@@ -118,25 +118,15 @@ impl gfx_scene::ViewInfo<f32, Transform<f32>> for ViewInfo {
     }
 }
 
-
-struct World {
-    transforms: Vec<Transform<f32>>,
-}
+struct World;
 
 impl World {
-    pub fn new() -> World {
-        World {
-            transforms: Vec::new(),
-        }
-    }
-    pub fn add(&mut self, offset: cgmath::Vector2<f32>) -> u8 {
-        let id = self.transforms.len();
-        self.transforms.push(cgmath::Decomposed {
+    pub fn add(&mut self, offset: cgmath::Vector2<f32>) -> Transform<f32> {
+        cgmath::Decomposed {
             scale: 1.0,
             rot: cgmath::Quaternion::identity(),
             disp: cgmath::vec3(offset.x, offset.y, 0.0),
-        });
-        id as u8
+        }
     }
 }
 
@@ -144,16 +134,11 @@ impl gfx_scene::World for World {
     type Scalar = f32;
     type Rotation = cgmath::Quaternion<f32>;
     type Transform = Transform<f32>;
-    type NodePtr = u8;
+    type NodePtr = Transform<f32>;
     type SkeletonPtr = ();
-    type Iter = std::option::IntoIter<Transform<f32>>;
 
-    fn get_transform(&self, node: &u8) -> &Transform<f32> {
-        &self.transforms[*node as usize]
-    }
-
-    fn iter_bones(&self, _: &()) -> std::option::IntoIter<Transform<f32>> {
-        None.into_iter()
+    fn get_transform(&self, node: &Transform<f32>) -> Transform<f32> {
+        *node
     }
 }
 
@@ -185,7 +170,7 @@ impl<
         let mesh = device.create_mesh(&vertex_data);
         let slice = mesh.to_slice(gfx::PrimitiveType::TriangleStrip);
 
-        let mut scene = gfx_scene::Scene::new(World::new());
+        let mut scene = gfx_scene::Scene::new(World);
         //scene.cull_frustum = false;
         let num = 10usize;
         let entities = (0..num).map(|i| {
