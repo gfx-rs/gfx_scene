@@ -1,7 +1,7 @@
 #![deny(missing_docs)]
 
 //! High-level rendering concepts for Gfx. Allow user code to work with
-// materials, entities, and techniques, instead of batches.
+//! materials, entities, and techniques, instead of batches.
 
 extern crate gfx;
 
@@ -30,7 +30,7 @@ pub trait ToDepth {
 pub type TechResult<'a, R, P> = (
     &'a gfx::ProgramHandle<R>,  // program
     P,                          // parameters
-    Option<&'a gfx::Mesh<R>>,   // insancing
+    Option<&'a gfx::Mesh<R>>,   // instancing
     &'a gfx::DrawState,         // state
 );
 
@@ -49,7 +49,7 @@ pub trait Technique<R: gfx::Resources, M: Material, V: ToDepth> {
     /// a draw state, and an optional instancing data.
     fn compile<'a>(&'a self, Self::Kernel, V)
                    -> TechResult<'a, R, Self::Params>;
-    /// Fix the shader parameters, using an updted material and view info.
+    /// Fix the shader parameters, using an updated material and view info.
     fn fix_params(&self, &M, &V, &mut Self::Params);
 }
 

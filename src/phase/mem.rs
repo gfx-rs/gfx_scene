@@ -18,7 +18,7 @@ pub trait Memory<T, S> {
 }
 
 impl<T, S> Memory<T, S> for () {
-	fn lookup(&self, _: T) -> Option<MemResult<S>> { None }
+    fn lookup(&self, _: T) -> Option<MemResult<S>> { None }
     fn store(&mut self, _: T, _: MemResult<S>) {}
 }
 
