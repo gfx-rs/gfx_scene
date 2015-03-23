@@ -11,14 +11,16 @@ gfx-rs established a solid basis for API abstraction and safe bind-less draw cal
 
 ## What is gfx_scene?
 
-High-level rendering and scene management for gfx-rs. A typical application is supposed to:
+High-level rendering and scene management for gfx-rs. It consists of 2 layers.
+
+`gfx_phase` is focused around abstract rendering techniques. Phases implement batch construction and sorting. The user is supposed to:
   - define one or more types of materials
   - define the concept of an entity
   - implement one or more rendering techniques, based on these materials
-  - define spatial relationships
-  - define the scene, draw entities using techniques wrapped in phases
 
-The repository contains `gfx_phase` and `gfx_scene` crates for different levels of abstractions.
+`gfx_scene` is based on `gfx_phase` and defines the `Entity` type as well as introduces a standard `Scene` struct. In order to get the frustum culling, the user needs to define spatial world that entities live in and provide the bounds. `gfx_scene` is tied to `cgmath-rs` and heavily uses abstract transformations and bounds.
+
+Both layers are very abstract and have a lot of generic parameters. See `alpha` example for the phase usage and `beta` one for the scenes.
 
 ## The plan
 
@@ -26,11 +28,11 @@ The repository contains `gfx_phase` and `gfx_scene` crates for different levels 
   	- device abstraction
   	- resource management
   	- bind-less draw calls
-  2. `gfx_scene`
+  2. `gfx_phase` and `gfx_scene`
     - high-level primitives
-    - phases
+    - phases with batch sorting
     - scenes with frustum culling
-  3. `gfx_pipeline` and `claymore`
+  3. `gfx_pipeline` and `claymore_*`
     - world implementation
     - forward/deferred/other pipelines
     - PBR/Phong/cartoon materials
