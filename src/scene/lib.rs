@@ -83,6 +83,7 @@ impl<R: gfx::Resources, M: phase::Material, W: World, B> phase::Entity<R, M> for
 }
 
 /// A simple camera with generic projection and spatial relation.
+#[derive(Clone, Debug)]
 pub struct Camera<P, N> {
     /// Name of the camera.
     pub name: String,
