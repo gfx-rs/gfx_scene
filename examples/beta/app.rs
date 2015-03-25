@@ -132,7 +132,6 @@ impl World {
 
 impl gfx_scene::World for World {
     type Scalar = f32;
-    type Rotation = cgmath::Quaternion<f32>;
     type Transform = Transform<f32>;
     type NodePtr = Transform<f32>;
     type SkeletonPtr = ();

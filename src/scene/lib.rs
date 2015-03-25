@@ -44,10 +44,8 @@ pub trait AbstractScene<R: gfx::Resources> {
 pub trait World {
     /// Type of the scalar used in all associated mathematical constructs.
     type Scalar: cgmath::BaseFloat + 'static;
-    /// Type of the rotation that can be decomposed from the transform.
-    type Rotation: cgmath::Rotation3<Self::Scalar>;
     /// Type of the transform that every node performs relative to the parent.
-    type Transform: cgmath::CompositeTransform3<Self::Scalar, Self::Rotation> + Clone;
+    type Transform: cgmath::Transform3<Self::Scalar> + Clone;
     /// Pointer to a node, associated with an entity, camera, or something else.
     type NodePtr;
     /// Pointer to a skeleton, associated with an enttity.
@@ -122,7 +120,6 @@ where
     R::Surface: 'a,
     R::Texture: 'a,
     R::Sampler: 'a,
-    W::Rotation: 'a,
     W::Transform: 'a,
     W::NodePtr: 'a,
     W::SkeletonPtr: 'a,
@@ -156,7 +153,8 @@ where
 pub struct Scene<R: gfx::Resources, M, W: World, B, P, V> {
     /// A list of entities in the scene.
     pub entities: Vec<Entity<R, M, W, B>>,
-    /// A list of cameras.
+    /// A list of cameras. It's not really useful, but `P` needs to be
+    /// constrained in order to be able to implement `AbstractScene`.
     pub cameras: Vec<Camera<P, W::NodePtr>>,
     /// A flag controlling the frustum culling.
     pub cull_frustum: bool,
