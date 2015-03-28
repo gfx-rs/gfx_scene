@@ -2,7 +2,7 @@
 
 //! Scene infrastructure to be used with Gfx phases.
 
-extern crate "gfx_phase" as phase;
+extern crate gfx_phase as phase;
 extern crate gfx;
 extern crate cgmath;
 

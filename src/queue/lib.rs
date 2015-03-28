@@ -60,7 +60,7 @@ impl<T> Queue<T> {
     /// Sort the draw queue.
     pub fn sort<F: Sized + Fn(&T, &T) -> std::cmp::Ordering>(&mut self, fun: F) {
         self.update();
-        let objects = self.objects.as_slice();
+        let objects = &self.objects;
         self.indices.sort_by(|&Id(a, _), &Id(b, _)|
             fun(&objects[a as usize], &objects[b as usize])
         );
@@ -70,7 +70,7 @@ impl<T> Queue<T> {
     pub fn iter<'a>(&'a self) -> QueueIter<'a, T> {
         assert!(self.is_ready());
         QueueIter {
-            objects: self.objects.as_slice(),
+            objects: &self.objects,
             id_iter: self.indices.iter(),
         }
     }

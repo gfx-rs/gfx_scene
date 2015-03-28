@@ -33,30 +33,38 @@ pub trait AbstractPhase<R: gfx::Resources, C: gfx::CommandBuffer<R>, E, V: ::ToD
     FlushPhase<R, C>
 {}
 
-struct Object<S, P: gfx::shade::ShaderParam> {
+struct Object<S, K, P: gfx::shade::ShaderParam> {
     batch: gfx::batch::CoreBatch<P>,
     params: P,
     slice: gfx::Slice<P::Resources>,
     depth: S,
+    kernel: K,
 }
 
-impl<S: Copy, P: gfx::shade::ShaderParam + Clone> Clone
-for Object<S, P> where P::Link: Copy
+impl<S: Copy, K: Copy, P: gfx::shade::ShaderParam + Clone> Clone
+for Object<S, K, P> where P::Link: Copy
 {
-    fn clone(&self) -> Object<S, P> {
+    fn clone(&self) -> Object<S, K, P> {
         Object {
             batch: self.batch,
             params: self.params.clone(),
             slice: self.slice.clone(),
             depth: self.depth,
+            kernel: self.kernel,
         }
     }
 }
 
-impl<S: PartialOrd, P: gfx::shade::ShaderParam> Object<S, P> {
-    fn cmp_depth(&self, other: &Object<S, P>) -> Ordering {
+impl<S: PartialOrd, K, P: gfx::shade::ShaderParam> Object<S, K, P> {
+    fn cmp_depth(&self, other: &Object<S, K, P>) -> Ordering {
         self.depth.partial_cmp(&other.depth)
             .unwrap_or(Ordering::Equal)
+    }
+}
+
+impl<S, K: Ord, P: gfx::shade::ShaderParam> Object<S, K, P> {
+    fn cmp_kernel(&self, other: &Object<S, K, P>) -> Ordering {
+        self.kernel.cmp(&other.kernel)
     }
 }
 
@@ -96,7 +104,7 @@ pub struct Phase<
     /// Sorting criteria vector. The first element has the highest priority. 
     pub sort: Vec<Sort>,
     /// Internal draw queue.
-    queue: draw_queue::Queue<Object<V::Depth, T::Params>>,
+    queue: draw_queue::Queue<Object<V::Depth, T::Kernel, T::Params>>,
 }
 
 impl<
@@ -123,7 +131,7 @@ pub type CacheMap<
     M: ::Material,
     V: ::ToDepth,
     T: ::Technique<R, M, V>,
-> = HashMap<T::Kernel, mem::MemResult<Object<V::Depth, T::Params>>>;
+> = HashMap<T::Kernel, mem::MemResult<Object<V::Depth, T::Kernel, T::Params>>>;
 
 /// A render phase that caches created render objects.
 pub type CachedPhase<
@@ -157,7 +165,7 @@ impl<
     V: ::ToDepth + Copy,
     E: ::Entity<R, M>,
     T: ::Technique<R, M, V>,
-    Y: mem::Memory<T::Kernel, Object<V::Depth, T::Params>>,
+    Y: mem::Memory<T::Kernel, Object<V::Depth, T::Kernel, T::Params>>,
 >QueuePhase<R, E, V> for Phase<R, M, V, T, Y> where
     T::Params: Clone,
     <T::Params as gfx::shade::ShaderParam>::Link: Copy,    
@@ -180,6 +188,7 @@ impl<
             Some(Ok(mut o)) => {
                 o.slice = slice.clone();
                 o.depth = depth;
+                assert_eq!(o.kernel, kernel);
                 self.technique.fix_params(entity.get_material(),
                                           &view_info, &mut o.params);
                 self.queue.objects.push(o);
@@ -209,6 +218,7 @@ impl<
                                 params: params,
                                 slice: slice.clone(),
                                 depth: depth,
+                                kernel: kernel,
                             });
         // Remember and return
         self.memory.store(kernel, object.clone());
@@ -225,7 +235,7 @@ impl<
     M: ::Material,
     V: ::ToDepth + Copy,
     T: ::Technique<R, M, V>,
-    Y: mem::Memory<T::Kernel, Object<V::Depth, T::Params>>,
+    Y: mem::Memory<T::Kernel, Object<V::Depth, T::Kernel, T::Params>>,
 >FlushPhase<R, C> for Phase<R, M, V, T, Y> {
     fn flush(&mut self, frame: &gfx::Frame<R>, context: &gfx::batch::Context<R>,
              renderer: &mut gfx::Renderer<R, C>) -> Result<(), FlushError> {
@@ -263,7 +273,7 @@ impl<
     V: ::ToDepth + Copy,
     E: ::Entity<R, M>,
     T: ::Technique<R, M, V>,
-    Y: mem::Memory<T::Kernel, Object<V::Depth, T::Params>>,
+    Y: mem::Memory<T::Kernel, Object<V::Depth, T::Kernel, T::Params>>,
 >AbstractPhase<R, C, E, V> for Phase<R, M, V, T, Y> where
     T::Params: Clone,
     <T::Params as gfx::shade::ShaderParam>::Link: Copy,
