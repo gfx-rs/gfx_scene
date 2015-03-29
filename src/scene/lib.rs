@@ -42,7 +42,7 @@ pub trait AbstractScene<R: gfx::Resources> {
     /// Draw the contents of the scene with a specific phase into a renderer,
     /// using a given camera and a frame.
     fn draw<C: gfx::CommandBuffer<R>, H: gfx_phase::AbstractPhase<R, C, Self::Entity, Self::ViewInfo> + ?Sized>(
-            &mut self, &mut H, &Self::Camera, &gfx::Frame<R>, &mut gfx::Renderer<R, C>) -> Result<(), Error>;
+            &self, &mut H, &Self::Camera, &gfx::Frame<R>, &mut gfx::Renderer<R, C>) -> Result<(), Error>;
 }
 
 /// A class that manages spatial relations between objects.
@@ -109,9 +109,6 @@ pub struct Scene<R: gfx::Resources, M, W: World, B, P, V> {
     pub cull_frustum: bool,
     /// Spatial world.
     pub world: W,
-    /// Sorting criteria vector. The first element has the highest priority. 
-    pub sort: Vec<gfx_phase::Sort>,
-    context: gfx::batch::Context<R>,
     _view_dummy: PhantomData<V>,
 }
 
@@ -123,8 +120,6 @@ impl<R: gfx::Resources, M, W: World, B, P, V> Scene<R, M, W, B, P, V> {
             cameras: Vec::new(),
             cull_frustum: true,
             world: world,
-            sort: Vec::new(),
-            context: gfx::batch::Context::new(),
             _view_dummy: PhantomData,
         }
     }
@@ -143,20 +138,17 @@ impl<
     type Camera = Camera<P, W::NodePtr>;
 
     fn draw<C: gfx::CommandBuffer<R>, H: gfx_phase::AbstractPhase<R, C, Entity<R, M, W, B>, V> + ?Sized>(
-            &mut self, phase: &mut H, camera: &Camera<P, W::NodePtr>,
+            &self, phase: &mut H, camera: &Camera<P, W::NodePtr>,
             frame: &gfx::Frame<R>, renderer: &mut gfx::Renderer<R, C>)
             -> Result<(), Error> {
         // enqueue entities
         match phase.enqueue_all(self.entities.iter(), &self.world, camera,
-                                self.cull_frustum, &mut self.context) {
+                                self.cull_frustum) {
             Ok(()) => (),
             Err(e) => return Err(Error::Batch(e)),
         };
-        // sort the scene
-        phase.sort(&self.sort);
         // flush into the renderer
-        phase.flush(frame, &mut self.context, renderer)
-             .map_err(|e| Error::Flush(e))
+        phase.flush(frame, renderer).map_err(|e| Error::Flush(e))
     }
 }
 

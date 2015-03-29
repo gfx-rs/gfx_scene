@@ -31,25 +31,22 @@ pub type FlushError = gfx::DrawError<gfx::batch::OutOfBounds>;
 /// An aspect of the phase to allow flushing into a Renderer.
 pub trait FlushPhase<R: gfx::Resources, C: gfx::CommandBuffer<R>> {
     /// Flush the queue into a given renderer.
-    fn flush(&mut self, &gfx::Frame<R>, &gfx::batch::Context<R>,
-             &mut gfx::Renderer<R, C>) -> Result<(), FlushError>;
+    fn flush(&mut self, &gfx::Frame<R>, &mut gfx::Renderer<R, C>)
+             -> Result<(), FlushError>;
 }
 
 /// An aspect of the phase that allows queuing entities for rendering.
-pub trait QueuePhase<R: gfx::Resources, E, V: ::ToDepth> {
+pub trait QueuePhase<E, V: ::ToDepth> {
     /// Check if it makes sense to draw this entity.
     fn test(&self, &E) -> bool;
     /// Add an entity to the queue.
-    fn enqueue(&mut self, &E, V, &mut gfx::batch::Context<R>)
-               -> Result<(), gfx::batch::Error>;
-    /// Sort by given criterias.
-    fn sort(&mut self, order: &[Sort]);
+    fn enqueue(&mut self, &E, V) -> Result<(), gfx::batch::Error>;
 }
 
 /// An abstract phase. Needs to be object-safe as phases should be
 /// allowed to be stored in boxed form in containers.
 pub trait AbstractPhase<R: gfx::Resources, C: gfx::CommandBuffer<R>, E, V: ::ToDepth>:
-    QueuePhase<R, E, V> +
+    QueuePhase<E, V> +
     FlushPhase<R, C>
 {}
 
@@ -113,10 +110,14 @@ pub struct Phase<
     pub name: String,
     /// Contained technique.
     pub technique: T,
+    /// Sorting criteria vector. The first element has the highest priority. 
+    pub sort: Vec<Sort>,
     /// Phase memory.
     memory: Y,
     /// Sorted draw queue.
     pub queue: draw_queue::Queue<Object<V::Depth, T::Kernel, T::Params>>,
+    /// Batch context.
+    context: gfx::batch::Context<R>,
 }
 
 impl<
@@ -130,8 +131,10 @@ impl<
         Phase {
             name: name.to_string(),
             technique: tech,
+            sort: Vec::new(),
             memory: (),
             queue: draw_queue::Queue::new(),
+            context: gfx::batch::Context::new(),
         }
     }
 }
@@ -163,8 +166,10 @@ impl<
         Phase {
             name: name.to_string(),
             technique: tech,
+            sort: Vec::new(),
             memory: HashMap::new(),
             queue: draw_queue::Queue::new(),
+            context: gfx::batch::Context::new(),
         }
     }
 }
@@ -176,7 +181,7 @@ impl<
     E: ::Entity<R, M>,
     T: ::Technique<R, M, V>,
     Y: mem::Memory<T::Kernel, Object<V::Depth, T::Kernel, T::Params>>,
->QueuePhase<R, E, V> for Phase<R, M, V, T, Y> where
+>QueuePhase<E, V> for Phase<R, M, V, T, Y> where
     T::Params: Clone,
     <T::Params as gfx::shade::ShaderParam>::Link: Copy,    
 {
@@ -185,8 +190,7 @@ impl<
                       .is_some()
     }
 
-    fn enqueue(&mut self, entity: &E, view_info: V,
-               context: &mut gfx::batch::Context<R>)
+    fn enqueue(&mut self, entity: &E, view_info: V)
                -> Result<(), gfx::batch::Error> {
         let kernel = self.technique.test(
             entity.get_mesh().0, entity.get_material())
@@ -222,36 +226,19 @@ impl<
             None => orig_mesh,
         };
         // Create queue object
-        let object = context.make_core(program, mesh, state)
-                            .map(|b| Object {
-                                batch: b,
-                                params: params,
-                                slice: slice.clone(),
-                                depth: depth,
-                                kernel: kernel,
-                            });
+        let object = self.context.make_core(program, mesh, state)
+            .map(|b| Object {
+                batch: b,
+                params: params,
+                slice: slice.clone(),
+                depth: depth,
+                kernel: kernel,
+            });
         // Remember and return
         self.memory.store(kernel, object.clone());
         match object {
             Ok(o) => Ok(self.queue.objects.push(o)),
             Err(e) => Err(e),
-        }
-    }
-
-    fn sort(&mut self, sort: &[Sort]) {
-        //TODO: multiple criterias
-        match sort.first() {
-            Some(&Sort::FrontToBack) =>
-                self.queue.sort(|a, b| a.cmp_depth(&b)),
-            Some(&Sort::BackToFront) =>
-                self.queue.sort(|a, b| b.cmp_depth(&a)),
-            Some(&Sort::Program) =>
-                self.queue.sort(|a, b| a.batch.cmp_program(&b.batch)),
-            Some(&Sort::Mesh) =>
-                self.queue.sort(|a, b| a.batch.cmp_mesh(&b.batch)),
-            Some(&Sort::DrawState) =>
-                self.queue.sort(|a, b| a.batch.cmp_state(&b.batch)),
-            None => (),
         }
     }
 }
@@ -264,12 +251,26 @@ impl<
     T: ::Technique<R, M, V>,
     Y: mem::Memory<T::Kernel, Object<V::Depth, T::Kernel, T::Params>>,
 >FlushPhase<R, C> for Phase<R, M, V, T, Y> {
-    fn flush(&mut self, frame: &gfx::Frame<R>, context: &gfx::batch::Context<R>,
-             renderer: &mut gfx::Renderer<R, C>) -> Result<(), FlushError> {
+    fn flush(&mut self, frame: &gfx::Frame<R>, renderer: &mut gfx::Renderer<R, C>)
+             -> Result<(), FlushError> {
         self.queue.update();
+        // sort the queue, if requested
+        match self.sort.first() {
+            Some(&Sort::FrontToBack) =>
+                self.queue.sort(|a, b| a.cmp_depth(&b)),
+            Some(&Sort::BackToFront) =>
+                self.queue.sort(|a, b| b.cmp_depth(&a)),
+            Some(&Sort::Program) =>
+                self.queue.sort(|a, b| a.batch.cmp_program(&b.batch)),
+            Some(&Sort::Mesh) =>
+                self.queue.sort(|a, b| a.batch.cmp_mesh(&b.batch)),
+            Some(&Sort::DrawState) =>
+                self.queue.sort(|a, b| a.batch.cmp_state(&b.batch)),
+            None => (),
+        }
         // accumulate the draws into the renderer
         for o in self.queue.iter() {
-            match renderer.draw(&context.bind(&o.batch, &o.slice, &o.params), frame) {
+            match renderer.draw(&self.context.bind(&o.batch, &o.slice, &o.params), frame) {
                 Ok(_) => (),
                 e => return e,
             }

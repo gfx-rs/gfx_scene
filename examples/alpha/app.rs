@@ -129,8 +129,6 @@ pub struct App<D: gfx::Device> {
     pub device: D,
     frame: gfx::Frame<D::Resources>,
     renderer: gfx::Renderer<D::Resources, D::CommandBuffer>,
-    context: gfx::batch::Context<D::Resources>,
-    
     phase: gfx_phase::CachedPhase<D::Resources, Material, ViewInfo, Technique<D::Resources>>,
     entities: Vec<Entity<D::Resources>>,
     proj_view: Matrix4<f32>,
@@ -171,10 +169,11 @@ impl<
             material: Material { alpha: i as f32 / 10.0 },
         });
 
-        let phase = gfx_phase::Phase::new_cached(
+        let mut phase = gfx_phase::Phase::new_cached(
             "Main",
             Technique::new(&mut device),
         );
+        phase.sort.push(gfx_phase::Sort::BackToFront);
 
         let aspect = w as f32 / h as f32;
         let proj = perspective(deg(90.0f32), aspect, 1.0, 10.0);
@@ -188,7 +187,6 @@ impl<
             device: device,
             frame: gfx::Frame::new(w, h),
             renderer: renderer,
-            context: gfx::batch::Context::new(),
             phase: phase,
             entities: entities.collect(),
             proj_view: proj.mul_m(&view.mat),
@@ -214,11 +212,11 @@ impl<D: gfx::Device> App<D> {
                 3.0 * angle.cos(), 0.0, 3.0 * angle.sin()
             ));
             let view_info = ViewInfo(self.proj_view.mul_m(&model));
-            self.phase.enqueue(ent, view_info, &mut self.context).unwrap();
+            self.phase.enqueue(ent, view_info).unwrap();
         }
         
         self.phase.queue.sort(gfx_phase::Object::back_to_front);
-        self.phase.flush(&self.frame, &mut self.context, &mut self.renderer).unwrap();
+        self.phase.flush(&self.frame, &mut self.renderer).unwrap();
         self.device.submit(self.renderer.as_buffer());
     }
 }

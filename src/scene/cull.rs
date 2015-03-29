@@ -12,15 +12,14 @@ pub trait CullPhase<
     E: gfx_phase::Entity<R, M>,
     W: World,
     V, //ViewInfo, necessary to be constrained
->: PhantomFn<M> + PhantomFn<V> {
+>: PhantomFn<R> + PhantomFn<M> + PhantomFn<V> {
     /// Enqueue a series of entities given by an iterator.
     /// Do frustum culling and `ViewInfo` construction on the fly.
     fn enqueue_all<'a,
         I: Iterator<Item = &'a E>,
         P: cgmath::Projection<W::Scalar>,
     >(  &mut self, entities: I, world: &W, camera: &Camera<P, W::NodePtr>,
-        cull_frustum: bool, context: &mut gfx::batch::Context<R>)
-        -> Result<(), gfx::batch::Error>;
+        cull_frustum: bool) -> Result<(), gfx::batch::Error>;
 }
 
 impl<
@@ -29,14 +28,13 @@ impl<
     W: World,
     B: cgmath::Bound<W::Scalar> + Debug,
     V: ViewInfo<W::Scalar, W::Transform>,
-    H: gfx_phase::QueuePhase<R, Entity<R, M, W, B>, V> + ?Sized,
+    H: gfx_phase::QueuePhase<Entity<R, M, W, B>, V> + ?Sized,
 > CullPhase<R, M, Entity<R, M, W, B>, W, V> for H {
     fn enqueue_all<'a,
         I: Iterator<Item = &'a Entity<R, M, W, B>>,
         P: cgmath::Projection<W::Scalar>,
     >(  &mut self, entities: I, world: &W, camera: &Camera<P, W::NodePtr>,
-        cull_frustum: bool, context: &mut gfx::batch::Context<R>)
-        -> Result<(), gfx::batch::Error>
+        cull_frustum: bool) -> Result<(), gfx::batch::Error>
     where
         R: 'a,
         R::Buffer: 'a,
@@ -70,7 +68,7 @@ impl<
                 continue
             }
             let view_info = ViewInfo::new(mvp, view, model.clone());
-            match self.enqueue(entity, view_info, context) {
+            match self.enqueue(entity, view_info) {
                 Ok(()) => (),
                 Err(e) => return Err(e),
             }
