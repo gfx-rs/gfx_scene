@@ -34,8 +34,8 @@ pub trait AbstractPhase<R: gfx::Resources, C: gfx::CommandBuffer<R>, E, V: ::ToD
 {}
 
 /// A rendering object, encapsulating the batch and additional info
-/// needed for sorting. It is only exposed for the matter of sorting,
-/// and accessed by immutable references by the user.
+/// needed for sorting. It is only exposed for this matter and
+/// accessed by immutable references by the user.
 #[allow(missing_docs)]
 pub struct Object<S, K, P: gfx::shade::ShaderParam> {
     pub batch: gfx::batch::CoreBatch<P>,
@@ -80,8 +80,8 @@ impl<S: PartialOrd, K, P: gfx::shade::ShaderParam> Object<S, K, P> {
     }
 }
 
-/// Phase is doing draw call accumulating and sorting,
-/// based a given technique.
+/// Phase is doing batch construction, accumulation, and memorization,
+/// based on a given technique.
 pub struct Phase<
     R: gfx::Resources,
     M: ::Material,

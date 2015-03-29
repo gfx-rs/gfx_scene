@@ -93,10 +93,10 @@ pub struct Camera<P, N> {
     pub node: N,
 }
 
-/// A generic `draw()` routine that takes a phase and some entities, and draws them
-/// into a given frame. It does frustum culling and `ViewInfo` construction.
+/// A helper routine to enqueue an iterator of entities into a phase.
+/// It does frustum culling and `ViewInfo` construction.
 /// It can be used as a helper for user-side scenes.
-pub fn draw_entities<'a,
+pub fn enqueue<'a,
     R: gfx::Resources,
     C: gfx::CommandBuffer<R>,
     M: phase::Material + 'a,
@@ -108,9 +108,8 @@ pub fn draw_entities<'a,
     I: Iterator<Item = &'a mut Entity<R, M, W, B>>,
 >
 (   entities: I, phase: &mut H, world: &W, camera: &Camera<P, W::NodePtr>,
-    cull_frustum: bool, frame: &gfx::Frame<R>,
-    context: &mut gfx::batch::Context<R>, renderer: &mut gfx::Renderer<R, C>)
-    -> Result<(), Error>
+    cull_frustum: bool, context: &mut gfx::batch::Context<R>)
+    -> Result<(), gfx::batch::Error>
 where
     R: 'a,
     R::Buffer: 'a,
@@ -143,11 +142,10 @@ where
         let view_info = ViewInfo::new(mvp, view, model.clone());
         match phase.enqueue(entity, view_info, context) {
             Ok(()) => (),
-            Err(e) => return Err(Error::Batch(e)),
+            Err(e) => return Err(e),
         }
     }
-    phase.flush(frame, context, renderer)
-         .map_err(|e| Error::Flush(e))
+    Ok(())
 }
 
 /// An example scene type.
@@ -195,8 +193,13 @@ impl<
             &mut self, phase: &mut H, camera: &Camera<P, W::NodePtr>,
             frame: &gfx::Frame<R>, renderer: &mut gfx::Renderer<R, C>)
             -> Result<(), Error> {
-        draw_entities(self.entities.iter_mut(), phase, &self.world, camera,
-                      self.cull_frustum, frame, &mut self.context, renderer)
+        match enqueue(self.entities.iter_mut(), phase, &self.world, camera,
+                      self.cull_frustum, &mut self.context)
+        {
+            Ok(()) => phase.flush(frame, &mut self.context, renderer)
+                           .map_err(|e| Error::Flush(e)),
+            Err(e) => Err(Error::Batch(e)),
+        }
     }
 }
 
