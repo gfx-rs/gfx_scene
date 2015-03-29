@@ -9,6 +9,11 @@ extern crate cgmath;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
+mod cull;
+
+pub use self::cull::CullPhase;
+
+
 /// Scene drawing error.
 #[derive(Debug)]
 pub enum Error {
@@ -93,60 +98,6 @@ pub struct Camera<P, N> {
     pub node: N,
 }
 
-/// A helper routine to enqueue an iterator of entities into a phase.
-/// It does frustum culling and `ViewInfo` construction.
-/// It can be used as a helper for user-side scenes.
-pub fn enqueue<'a,
-    R: gfx::Resources,
-    M: gfx_phase::Material + 'a,
-    W: World + 'a,
-    B: cgmath::Bound<W::Scalar> + Debug + 'a,
-    H: gfx_phase::QueuePhase<R, Entity<R, M, W, B>, V> + ?Sized,
-    P: cgmath::Projection<W::Scalar>,
-    V: ViewInfo<W::Scalar, W::Transform>,
-    I: Iterator<Item = &'a mut Entity<R, M, W, B>>,
->
-(   entities: I, phase: &mut H, world: &W, camera: &Camera<P, W::NodePtr>,
-    cull_frustum: bool, context: &mut gfx::batch::Context<R>)
-    -> Result<(), gfx::batch::Error>
-where
-    R: 'a,
-    R::Buffer: 'a,
-    R::ArrayBuffer: 'a,
-    R::Shader: 'a,
-    R::Program: 'a,
-    R::FrameBuffer: 'a,
-    R::Surface: 'a,
-    R::Texture: 'a,
-    R::Sampler: 'a,
-    W::Transform: 'a,
-    W::NodePtr: 'a,
-    W::SkeletonPtr: 'a,
-{
-    use cgmath::{Matrix, ToMatrix4, Transform};
-    let cam_inverse = world.get_transform(&camera.node)
-                           .invert().unwrap();
-    let projection = camera.projection.to_matrix4()
-                           .mul_m(&cam_inverse.to_matrix4());
-    for entity in entities {
-        if !phase.test(entity) {
-            continue
-        }
-        let model = world.get_transform(&entity.node);
-        let view = cam_inverse.concat(&model);
-        let mvp = projection.mul_m(&model.to_matrix4());
-        if cull_frustum && entity.bound.relate_clip_space(&mvp) == cgmath::Relation::Out {
-            continue
-        }
-        let view_info = ViewInfo::new(mvp, view, model.clone());
-        match phase.enqueue(entity, view_info, context) {
-            Ok(()) => (),
-            Err(e) => return Err(e),
-        }
-    }
-    Ok(())
-}
-
 /// An example scene type.
 pub struct Scene<R: gfx::Resources, M, W: World, B, P, V> {
     /// A list of entities in the scene.
@@ -196,8 +147,8 @@ impl<
             frame: &gfx::Frame<R>, renderer: &mut gfx::Renderer<R, C>)
             -> Result<(), Error> {
         // enqueue entities
-        match enqueue(self.entities.iter_mut(), phase, &self.world, camera,
-                      self.cull_frustum, &mut self.context) {
+        match phase.enqueue_all(self.entities.iter_mut(), &self.world, camera,
+                                self.cull_frustum, &mut self.context) {
             Ok(()) => (),
             Err(e) => return Err(Error::Batch(e)),
         };
