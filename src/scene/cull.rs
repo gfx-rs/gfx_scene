@@ -16,7 +16,7 @@ pub trait CullPhase<
     /// Enqueue a series of entities given by an iterator.
     /// Do frustum culling and `ViewInfo` construction on the fly.
     fn enqueue_all<'a,
-        I: Iterator<Item = &'a mut E>,
+        I: Iterator<Item = &'a E>,
         P: cgmath::Projection<W::Scalar>,
     >(  &mut self, entities: I, world: &W, camera: &Camera<P, W::NodePtr>,
         cull_frustum: bool, context: &mut gfx::batch::Context<R>)
@@ -32,7 +32,7 @@ impl<
     H: gfx_phase::QueuePhase<R, Entity<R, M, W, B>, V> + ?Sized,
 > CullPhase<R, M, Entity<R, M, W, B>, W, V> for H {
     fn enqueue_all<'a,
-        I: Iterator<Item = &'a mut Entity<R, M, W, B>>,
+        I: Iterator<Item = &'a Entity<R, M, W, B>>,
         P: cgmath::Projection<W::Scalar>,
     >(  &mut self, entities: I, world: &W, camera: &Camera<P, W::NodePtr>,
         cull_frustum: bool, context: &mut gfx::batch::Context<R>)

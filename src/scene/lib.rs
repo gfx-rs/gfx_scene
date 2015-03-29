@@ -147,7 +147,7 @@ impl<
             frame: &gfx::Frame<R>, renderer: &mut gfx::Renderer<R, C>)
             -> Result<(), Error> {
         // enqueue entities
-        match phase.enqueue_all(self.entities.iter_mut(), &self.world, camera,
+        match phase.enqueue_all(self.entities.iter(), &self.world, camera,
                                 self.cull_frustum, &mut self.context) {
             Ok(()) => (),
             Err(e) => return Err(Error::Batch(e)),
