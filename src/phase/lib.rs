@@ -12,8 +12,8 @@ use std::fmt::Debug;
 use std::hash::Hash;
 use std::marker::PhantomFn;
 
-pub use self::phase::{FlushError, QueuePhase, FlushPhase,
-                      AbstractPhase, Sort, Phase, CachedPhase};
+pub use self::phase::{Sort, Object, FlushError, QueuePhase, FlushPhase,
+                      AbstractPhase, Phase, CachedPhase};
 
 /// Abstract material.
 pub trait Material: PhantomFn<Self> {}

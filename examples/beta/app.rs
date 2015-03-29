@@ -170,6 +170,7 @@ impl<
         let slice = mesh.to_slice(gfx::PrimitiveType::TriangleStrip);
 
         let mut scene = gfx_scene::Scene::new(World);
+        scene.sort.push(gfx_phase::Sort::Program);
         //scene.cull_frustum = false;
         let num = 10usize;
         let entities = (0..num).map(|i| {
@@ -192,11 +193,10 @@ impl<
         //let mut harness = gfx_scene::PhaseHarness::<gfx_device_gl::GlDevice, _>::
         //    new(scene, device.create_renderer());
 
-        let mut phase = gfx_phase::Phase::new(
+        let phase = gfx_phase::Phase::new(
             "Main",
             Technique::new(&mut device),
         );
-        phase.sort.push(gfx_phase::Sort::Program);
         //harness.phases.push(Box::new(phase));
         //harness.clear = Some(clear_data);
 

@@ -1,4 +1,4 @@
-#![feature(plugin, custom_attribute)]
+#![feature(core, plugin, custom_attribute)]
 #![plugin(gfx_macros)]
 
 extern crate cgmath;
