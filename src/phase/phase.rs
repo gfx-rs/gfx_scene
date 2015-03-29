@@ -69,13 +69,13 @@ impl<S: PartialOrd, K, P: gfx::shade::ShaderParam> Object<S, K, P> {
     /// Order by depth, front-to-back. Useful for opaque objects that updates
     /// the depth buffer. The front stuff will occlude more pixels, leaving
     /// less work to be done for the farther objects.
-    pub fn order_front_to_back(a: &Object<S, K, P>, b: &Object<S, K, P>) -> Ordering {
+    pub fn front_to_back(a: &Object<S, K, P>, b: &Object<S, K, P>) -> Ordering {
         a.cmp_depth(b)
     }
 
     /// Order by depth, back-to-front. Useful for transparent objects, since
     /// blending should take into account everything that lies behind.
-    pub fn order_back_to_front(a: &Object<S, K, P>, b: &Object<S, K, P>) -> Ordering {
+    pub fn back_to_front(a: &Object<S, K, P>, b: &Object<S, K, P>) -> Ordering {
         b.cmp_depth(a)
     }
 }

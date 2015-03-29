@@ -171,11 +171,10 @@ impl<
             material: Material { alpha: i as f32 / 10.0 },
         });
 
-        let mut phase = gfx_phase::Phase::new_cached(
+        let phase = gfx_phase::Phase::new_cached(
             "Main",
             Technique::new(&mut device),
         );
-        phase.sort.push(gfx_phase::Sort::BackToFront);
 
         let aspect = w as f32 / h as f32;
         let proj = perspective(deg(90.0f32), aspect, 1.0, 10.0);
@@ -218,6 +217,7 @@ impl<D: gfx::Device> App<D> {
             self.phase.enqueue(ent, view_info, &mut self.context).unwrap();
         }
         
+        self.phase.queue.sort(gfx_phase::Object::back_to_front);
         self.phase.flush(&self.frame, &mut self.context, &mut self.renderer).unwrap();
         self.device.submit(self.renderer.as_buffer());
     }
