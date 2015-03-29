@@ -1,4 +1,3 @@
-#![feature(core)]
 #![deny(missing_docs)]
 
 //! Generic draw queue that keeps item ordering, supposedly minimizing

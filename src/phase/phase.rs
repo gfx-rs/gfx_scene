@@ -33,12 +33,16 @@ pub trait AbstractPhase<R: gfx::Resources, C: gfx::CommandBuffer<R>, E, V: ::ToD
     FlushPhase<R, C>
 {}
 
-struct Object<S, K, P: gfx::shade::ShaderParam> {
-    batch: gfx::batch::CoreBatch<P>,
-    params: P,
-    slice: gfx::Slice<P::Resources>,
-    depth: S,
-    kernel: K,
+/// A rendering object, encapsulating the batch and additional info
+/// needed for sorting. It is only exposed for the matter of sorting,
+/// and accessed by immutable references by the user.
+#[allow(missing_docs)]
+pub struct Object<S, K, P: gfx::shade::ShaderParam> {
+    pub batch: gfx::batch::CoreBatch<P>,
+    pub params: P,
+    pub slice: gfx::Slice<P::Resources>,
+    pub depth: S,
+    pub kernel: K,
 }
 
 impl<S: Copy, K: Copy, P: gfx::shade::ShaderParam + Clone> Clone
@@ -56,34 +60,24 @@ for Object<S, K, P> where P::Link: Copy
 }
 
 impl<S: PartialOrd, K, P: gfx::shade::ShaderParam> Object<S, K, P> {
-    fn cmp_depth(&self, other: &Object<S, K, P>) -> Ordering {
+    /// A helper method to compare the depth, which is only partially ordered.
+    pub fn cmp_depth(&self, other: &Object<S, K, P>) -> Ordering {
         self.depth.partial_cmp(&other.depth)
             .unwrap_or(Ordering::Equal)
     }
-}
 
-impl<S, K: Ord, P: gfx::shade::ShaderParam> Object<S, K, P> {
-    fn cmp_kernel(&self, other: &Object<S, K, P>) -> Ordering {
-        self.kernel.cmp(&other.kernel)
-    }
-}
-
-/// Type of phase sorting.
-pub enum Sort {
-    /// Sort by depth, front-to-back. Useful for opaque objects that updates
+    /// Order by depth, front-to-back. Useful for opaque objects that updates
     /// the depth buffer. The front stuff will occlude more pixels, leaving
     /// less work to be done for the farther objects.
-    FrontToBack,
-    /// Sort by depth, back-to-front. Useful for transparent objects, since
+    pub fn order_front_to_back(a: &Object<S, K, P>, b: &Object<S, K, P>) -> Ordering {
+        a.cmp_depth(b)
+    }
+
+    /// Order by depth, back-to-front. Useful for transparent objects, since
     /// blending should take into account everything that lies behind.
-    BackToFront,
-    /// Sort by shader program. Switching a program is one of the heaviest
-    /// state changes, so this variant is useful when the order is not important.
-    Program,
-    /// Sort by mesh. Allows minimizing the vertex format changes.
-    Mesh,
-    /// Sort by draw state.
-    DrawState,
+    pub fn order_back_to_front(a: &Object<S, K, P>, b: &Object<S, K, P>) -> Ordering {
+        b.cmp_depth(a)
+    }
 }
 
 /// Phase is doing draw call accumulating and sorting,
@@ -101,10 +95,8 @@ pub struct Phase<
     pub technique: T,
     /// Phase memory.
     memory: Y,
-    /// Sorting criteria vector. The first element has the highest priority. 
-    pub sort: Vec<Sort>,
-    /// Internal draw queue.
-    queue: draw_queue::Queue<Object<V::Depth, T::Kernel, T::Params>>,
+    /// Sorted draw queue.
+    pub queue: draw_queue::Queue<Object<V::Depth, T::Kernel, T::Params>>,
 }
 
 impl<
@@ -119,7 +111,6 @@ impl<
             name: name.to_string(),
             technique: tech,
             memory: (),
-            sort: Vec::new(),
             queue: draw_queue::Queue::new(),
         }
     }
@@ -153,7 +144,6 @@ impl<
             name: name.to_string(),
             technique: tech,
             memory: HashMap::new(),
-            sort: Vec::new(),
             queue: draw_queue::Queue::new(),
         }
     }
@@ -239,21 +229,8 @@ impl<
 >FlushPhase<R, C> for Phase<R, M, V, T, Y> {
     fn flush(&mut self, frame: &gfx::Frame<R>, context: &gfx::batch::Context<R>,
              renderer: &mut gfx::Renderer<R, C>) -> Result<(), FlushError> {
-        // sort the queue
-        match self.sort.first() {
-            Some(&Sort::FrontToBack) =>
-                self.queue.sort(|a, b| a.cmp_depth(&b)),
-            Some(&Sort::BackToFront) =>
-                self.queue.sort(|a, b| b.cmp_depth(&a)),
-            Some(&Sort::Program) =>
-                self.queue.sort(|a, b| a.batch.cmp_program(&b.batch)),
-            Some(&Sort::Mesh) =>
-                self.queue.sort(|a, b| a.batch.cmp_mesh(&b.batch)),
-            Some(&Sort::DrawState) =>
-                self.queue.sort(|a, b| a.batch.cmp_state(&b.batch)),
-            None => (),
-        }
-        // call the draws
+        self.queue.update();
+        // accumulate the draws into the renderer
         for o in self.queue.iter() {
             match renderer.draw(&context.bind(&o.batch, &o.slice, &o.params), frame) {
                 Ok(_) => (),
