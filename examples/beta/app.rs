@@ -170,6 +170,7 @@ impl<
         let slice = mesh.to_slice(gfx::PrimitiveType::TriangleStrip);
 
         let mut scene = gfx_scene::Scene::new(World);
+        scene.sort.push(gfx_phase::Sort::Program);
         //scene.cull_frustum = false;
         let num = 10usize;
         let entities = (0..num).map(|i| {

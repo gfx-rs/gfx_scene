@@ -7,6 +7,24 @@ use std::collections::HashMap;
 use gfx;
 use mem;
 
+/// Type of phase sorting.
+pub enum Sort {
+    /// Sort by depth, front-to-back. Useful for opaque objects that updates
+    /// the depth buffer. The front stuff will occlude more pixels, leaving
+    /// less work to be done for the farther objects.
+    FrontToBack,
+    /// Sort by depth, back-to-front. Useful for transparent objects, since
+    /// blending should take into account everything that lies behind.
+    BackToFront,
+    /// Sort by shader program. Switching a program is one of the heaviest
+    /// state changes, so this variant is useful when the order is not important.
+    Program,
+    /// Sort by mesh. Allows minimizing the vertex format changes.
+    Mesh,
+    /// Sort by draw state.
+    DrawState,
+}
+
 /// Potential error occuring during rendering.
 pub type FlushError = gfx::DrawError<gfx::batch::OutOfBounds>;
 
@@ -24,6 +42,8 @@ pub trait QueuePhase<R: gfx::Resources, E, V: ::ToDepth> {
     /// Add an entity to the queue.
     fn enqueue(&mut self, &E, V, &mut gfx::batch::Context<R>)
                -> Result<(), gfx::batch::Error>;
+    /// Sort by given criterias.
+    fn sort(&mut self, order: &[Sort]);
 }
 
 /// An abstract phase. Needs to be object-safe as phases should be
@@ -215,6 +235,23 @@ impl<
         match object {
             Ok(o) => Ok(self.queue.objects.push(o)),
             Err(e) => Err(e),
+        }
+    }
+
+    fn sort(&mut self, sort: &[Sort]) {
+        //TODO: multiple criterias
+        match sort.first() {
+            Some(&Sort::FrontToBack) =>
+                self.queue.sort(|a, b| a.cmp_depth(&b)),
+            Some(&Sort::BackToFront) =>
+                self.queue.sort(|a, b| b.cmp_depth(&a)),
+            Some(&Sort::Program) =>
+                self.queue.sort(|a, b| a.batch.cmp_program(&b.batch)),
+            Some(&Sort::Mesh) =>
+                self.queue.sort(|a, b| a.batch.cmp_mesh(&b.batch)),
+            Some(&Sort::DrawState) =>
+                self.queue.sort(|a, b| a.batch.cmp_state(&b.batch)),
+            None => (),
         }
     }
 }

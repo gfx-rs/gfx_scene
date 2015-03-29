@@ -12,7 +12,7 @@ use std::fmt::Debug;
 use std::hash::Hash;
 use std::marker::PhantomFn;
 
-pub use self::phase::{Object, FlushError, QueuePhase, FlushPhase,
+pub use self::phase::{Sort, Object, FlushError, QueuePhase, FlushPhase,
                       AbstractPhase, Phase, CachedPhase};
 
 /// Abstract material.

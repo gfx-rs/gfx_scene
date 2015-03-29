@@ -2,7 +2,7 @@
 
 //! Scene infrastructure to be used with Gfx phases.
 
-extern crate gfx_phase as phase;
+extern crate gfx_phase;
 extern crate gfx;
 extern crate cgmath;
 
@@ -15,12 +15,12 @@ pub enum Error {
     /// Error in creating a batch.
     Batch(gfx::batch::Error),
     /// Error in sending a batch for drawing.
-    Flush(phase::FlushError),
+    Flush(gfx_phase::FlushError),
 }
 
 /// Abstract information about the view. Supposed to containt at least
 /// Model-View-Projection transform for the shader.
-pub trait ViewInfo<S, T: cgmath::Transform3<S>>: phase::ToDepth<Depth = S> {
+pub trait ViewInfo<S, T: cgmath::Transform3<S>>: gfx_phase::ToDepth<Depth = S> {
     /// Construct a new information block.
     fn new(mvp: cgmath::Matrix4<S>, view: T, model: T) -> Self;
 }
@@ -36,7 +36,7 @@ pub trait AbstractScene<R: gfx::Resources> {
 
     /// Draw the contents of the scene with a specific phase into a renderer,
     /// using a given camera and a frame.
-    fn draw<C: gfx::CommandBuffer<R>, H: phase::AbstractPhase<R, C, Self::Entity, Self::ViewInfo> + ?Sized>(
+    fn draw<C: gfx::CommandBuffer<R>, H: gfx_phase::AbstractPhase<R, C, Self::Entity, Self::ViewInfo> + ?Sized>(
             &mut self, &mut H, &Self::Camera, &gfx::Frame<R>, &mut gfx::Renderer<R, C>) -> Result<(), Error>;
 }
 
@@ -73,7 +73,7 @@ pub struct Entity<R: gfx::Resources, M, W: World, B> {
     pub bound: B,
 }
 
-impl<R: gfx::Resources, M: phase::Material, W: World, B> phase::Entity<R, M> for Entity<R, M, W, B> {
+impl<R: gfx::Resources, M: gfx_phase::Material, W: World, B> gfx_phase::Entity<R, M> for Entity<R, M, W, B> {
     fn get_material(&self) -> &M {
         &self.material
     }
@@ -99,10 +99,10 @@ pub struct Camera<P, N> {
 pub fn enqueue<'a,
     R: gfx::Resources,
     C: gfx::CommandBuffer<R>,
-    M: phase::Material + 'a,
+    M: gfx_phase::Material + 'a,
     W: World + 'a,
     B: cgmath::Bound<W::Scalar> + Debug + 'a,
-    H: phase::AbstractPhase<R, C, Entity<R, M, W, B>, V> + ?Sized,
+    H: gfx_phase::AbstractPhase<R, C, Entity<R, M, W, B>, V> + ?Sized,
     P: cgmath::Projection<W::Scalar>,
     V: ViewInfo<W::Scalar, W::Transform>,
     I: Iterator<Item = &'a mut Entity<R, M, W, B>>,
@@ -159,6 +159,8 @@ pub struct Scene<R: gfx::Resources, M, W: World, B, P, V> {
     pub cull_frustum: bool,
     /// Spatial world.
     pub world: W,
+    /// Sorting criteria vector. The first element has the highest priority. 
+    pub sort: Vec<gfx_phase::Sort>,
     context: gfx::batch::Context<R>,
     _view_dummy: PhantomData<V>,
 }
@@ -171,6 +173,7 @@ impl<R: gfx::Resources, M, W: World, B, P, V> Scene<R, M, W, B, P, V> {
             cameras: Vec::new(),
             cull_frustum: true,
             world: world,
+            sort: Vec::new(),
             context: gfx::batch::Context::new(),
             _view_dummy: PhantomData,
         }
@@ -179,7 +182,7 @@ impl<R: gfx::Resources, M, W: World, B, P, V> Scene<R, M, W, B, P, V> {
 
 impl<
     R: gfx::Resources,
-    M: phase::Material,
+    M: gfx_phase::Material,
     W: World,
     B: cgmath::Bound<W::Scalar> + Debug,
     P: cgmath::Projection<W::Scalar>,
@@ -189,17 +192,21 @@ impl<
     type Entity = Entity<R, M, W, B>;
     type Camera = Camera<P, W::NodePtr>;
 
-    fn draw<C: gfx::CommandBuffer<R>, H: phase::AbstractPhase<R, C, Entity<R, M, W, B>, V> + ?Sized>(
+    fn draw<C: gfx::CommandBuffer<R>, H: gfx_phase::AbstractPhase<R, C, Entity<R, M, W, B>, V> + ?Sized>(
             &mut self, phase: &mut H, camera: &Camera<P, W::NodePtr>,
             frame: &gfx::Frame<R>, renderer: &mut gfx::Renderer<R, C>)
             -> Result<(), Error> {
+        // enqueue entities
         match enqueue(self.entities.iter_mut(), phase, &self.world, camera,
-                      self.cull_frustum, &mut self.context)
-        {
-            Ok(()) => phase.flush(frame, &mut self.context, renderer)
-                           .map_err(|e| Error::Flush(e)),
-            Err(e) => Err(Error::Batch(e)),
-        }
+                      self.cull_frustum, &mut self.context) {
+            Ok(()) => (),
+            Err(e) => return Err(Error::Batch(e)),
+        };
+        // sort the scene
+        phase.sort(&self.sort);
+        // flush into the renderer
+        phase.flush(frame, &mut self.context, renderer)
+             .map_err(|e| Error::Flush(e))
     }
 }
 
@@ -211,7 +218,7 @@ pub struct PhaseHarness<D: gfx::Device, C: AbstractScene<D::Resources>> {
     /// Optional clear data.
     pub clear: Option<gfx::ClearData>,
     /// List of phases as trait objects.
-    pub phases: Vec<Box<phase::AbstractPhase<D::Resources, D::CommandBuffer, C::Entity, C::ViewInfo>>>,
+    pub phases: Vec<Box<gfx_phase::AbstractPhase<D::Resources, D::CommandBuffer, C::Entity, C::ViewInfo>>>,
     /// Gfx renderer to draw into.
     pub renderer: gfx::Renderer<D::Resources, D::CommandBuffer>,
 }
