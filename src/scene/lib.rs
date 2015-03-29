@@ -98,11 +98,10 @@ pub struct Camera<P, N> {
 /// It can be used as a helper for user-side scenes.
 pub fn enqueue<'a,
     R: gfx::Resources,
-    C: gfx::CommandBuffer<R>,
     M: gfx_phase::Material + 'a,
     W: World + 'a,
     B: cgmath::Bound<W::Scalar> + Debug + 'a,
-    H: gfx_phase::AbstractPhase<R, C, Entity<R, M, W, B>, V> + ?Sized,
+    H: gfx_phase::QueuePhase<R, Entity<R, M, W, B>, V> + ?Sized,
     P: cgmath::Projection<W::Scalar>,
     V: ViewInfo<W::Scalar, W::Transform>,
     I: Iterator<Item = &'a mut Entity<R, M, W, B>>,
