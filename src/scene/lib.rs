@@ -6,6 +6,7 @@ extern crate gfx_phase;
 extern crate gfx;
 extern crate cgmath;
 
+use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
@@ -41,8 +42,25 @@ pub trait AbstractScene<R: gfx::Resources> {
 
     /// Draw the contents of the scene with a specific phase into a renderer,
     /// using a given camera and a frame.
-    fn draw<C: gfx::CommandBuffer<R>, H: gfx_phase::AbstractPhase<R, C, Self::Entity, Self::ViewInfo> + ?Sized>(
-            &self, &mut H, &Self::Camera, &gfx::Frame<R>, &mut gfx::Renderer<R, C>) -> Result<(), Error>;
+    fn draw<
+        C: gfx::CommandBuffer<R>,
+        H: gfx_phase::AbstractPhase<R, C, Self::Entity, Self::ViewInfo> + ?Sized,
+    >(
+        &self, &mut H, &Self::Camera, &gfx::Frame<R>, &mut gfx::Renderer<R, C>)
+        -> Result<(), Error>;
+}
+
+/// An extension to `AbstractScene` that allows custom ordering of batches.
+pub trait OrderedScene<R: gfx::Resources>: AbstractScene<R> {
+    /// Draw the contents with a specific phase, given the ordering function.
+    fn draw_ordered<
+        C: gfx::CommandBuffer<R>,
+        H: gfx_phase::AbstractPhase<R, C, Self::Entity, Self::ViewInfo> + ?Sized +
+            gfx_phase::Ordered,
+        F: Fn(&H::Object, &H::Object) -> Ordering,
+    >(
+        &self, &mut H, order: F, &Self::Camera, &gfx::Frame<R>, &mut gfx::Renderer<R, C>)
+        -> Result<(), Error>;
 }
 
 /// A class that manages spatial relations between objects.
@@ -137,16 +155,52 @@ impl<
     type Entity = Entity<R, M, W, B>;
     type Camera = Camera<P, W::NodePtr>;
 
-    fn draw<C: gfx::CommandBuffer<R>, H: gfx_phase::AbstractPhase<R, C, Entity<R, M, W, B>, V> + ?Sized>(
-            &self, phase: &mut H, camera: &Camera<P, W::NodePtr>,
-            frame: &gfx::Frame<R>, renderer: &mut gfx::Renderer<R, C>)
-            -> Result<(), Error> {
+    fn draw<
+        C: gfx::CommandBuffer<R>,
+        H: gfx_phase::AbstractPhase<R, C, Entity<R, M, W, B>, V> + ?Sized,
+    >(  &self, phase: &mut H, camera: &Camera<P, W::NodePtr>,
+        frame: &gfx::Frame<R>, renderer: &mut gfx::Renderer<R, C>)
+        -> Result<(), Error>
+    {
         // enqueue entities
         match phase.enqueue_all(self.entities.iter(), &self.world, camera,
                                 self.cull_frustum) {
             Ok(()) => (),
             Err(e) => return Err(Error::Batch(e)),
         };
+        // sort by default criterias
+        phase.sort();
+        // flush into the renderer
+        phase.flush(frame, renderer).map_err(|e| Error::Flush(e))
+    }
+}
+
+impl<
+    R: gfx::Resources,
+    M: gfx_phase::Material,
+    W: World,
+    B: cgmath::Bound<W::Scalar> + Debug,
+    P: cgmath::Projection<W::Scalar>,
+    V: ViewInfo<W::Scalar, W::Transform>,
+> OrderedScene<R> for Scene<R, M, W, B, P, V> {
+    fn draw_ordered<
+        C: gfx::CommandBuffer<R>,
+        H: gfx_phase::AbstractPhase<R, C, Entity<R, M, W, B>, V> + ?Sized +
+            gfx_phase::Ordered,
+        F: Fn(&H::Object, &H::Object) -> Ordering,
+    >(
+        &self, phase: &mut H, order: F, camera: &Camera<P, W::NodePtr>,
+        frame: &gfx::Frame<R>, renderer: &mut gfx::Renderer<R, C>)
+        -> Result<(), Error>
+    {
+        // enqueue entities
+        match phase.enqueue_all(self.entities.iter(), &self.world, camera,
+                                self.cull_frustum) {
+            Ok(()) => (),
+            Err(e) => return Err(Error::Batch(e)),
+        };
+        // sort by custom criterias
+        phase.sort_with(order);
         // flush into the renderer
         phase.flush(frame, renderer).map_err(|e| Error::Flush(e))
     }
