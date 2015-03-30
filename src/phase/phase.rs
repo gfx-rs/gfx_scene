@@ -48,7 +48,20 @@ pub trait QueuePhase<E, V: ::ToDepth> {
 pub trait AbstractPhase<R: gfx::Resources, C: gfx::CommandBuffer<R>, E, V: ::ToDepth>:
     QueuePhase<E, V> +
     FlushPhase<R, C>
-{}
+{
+    /// Sort by the default preference.
+    fn sort(&mut self);
+}
+
+/// Something that can be ordered with a custom function.
+pub trait Ordered {
+    /// Type of the thing to order.
+    type Object;
+    /// Sort with a custom comparison function.
+    fn sort_with<
+        F: Fn(&Self::Object, &Self::Object) -> Ordering,
+    >(&mut self, F);
+}
 
 /// A rendering object, encapsulating the batch and additional info
 /// needed for sorting. It is only exposed for this matter and
@@ -254,20 +267,6 @@ impl<
     fn flush(&mut self, frame: &gfx::Frame<R>, renderer: &mut gfx::Renderer<R, C>)
              -> Result<(), FlushError> {
         self.queue.update();
-        // sort the queue, if requested
-        match self.sort.first() {
-            Some(&Sort::FrontToBack) =>
-                self.queue.sort(|a, b| a.cmp_depth(&b)),
-            Some(&Sort::BackToFront) =>
-                self.queue.sort(|a, b| b.cmp_depth(&a)),
-            Some(&Sort::Program) =>
-                self.queue.sort(|a, b| a.batch.cmp_program(&b.batch)),
-            Some(&Sort::Mesh) =>
-                self.queue.sort(|a, b| a.batch.cmp_mesh(&b.batch)),
-            Some(&Sort::DrawState) =>
-                self.queue.sort(|a, b| a.batch.cmp_state(&b.batch)),
-            None => (),
-        }
         // accumulate the draws into the renderer
         for o in self.queue.iter() {
             match renderer.draw(&self.context.bind(&o.batch, &o.slice, &o.params), frame) {
@@ -292,4 +291,39 @@ impl<
 >AbstractPhase<R, C, E, V> for Phase<R, M, V, T, Y> where
     T::Params: Clone,
     <T::Params as gfx::shade::ShaderParam>::Link: Copy,
-{}
+{
+    fn sort(&mut self) {
+        match self.sort.first() {
+            Some(&Sort::FrontToBack) =>
+                self.queue.sort(|a, b| a.cmp_depth(&b)),
+            Some(&Sort::BackToFront) =>
+                self.queue.sort(|a, b| b.cmp_depth(&a)),
+            Some(&Sort::Program) =>
+                self.queue.sort(|a, b| a.batch.cmp_program(&b.batch)),
+            Some(&Sort::Mesh) =>
+                self.queue.sort(|a, b| a.batch.cmp_mesh(&b.batch)),
+            Some(&Sort::DrawState) =>
+                self.queue.sort(|a, b| a.batch.cmp_state(&b.batch)),
+            None => (),
+        }
+    }
+}
+
+impl<
+    R: gfx::Resources,
+    M: ::Material,
+    V: ::ToDepth,
+    T: ::Technique<R, M, V>,
+    Y,
+> Ordered for Phase<R, M, V, T, Y> {
+    type Object = Object<V::Depth, T::Kernel, T::Params>;
+
+    fn sort_with<
+        F: Fn(
+            &Object<V::Depth, T::Kernel, T::Params>,
+            &Object<V::Depth, T::Kernel, T::Params>)
+            -> Ordering,
+    >(&mut self, fun: F) {
+        self.queue.sort(fun);
+    }
+}
