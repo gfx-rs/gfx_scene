@@ -205,7 +205,6 @@ impl<D: gfx::Device> App<D> {
         self.renderer.clear(clear_data, gfx::COLOR | gfx::DEPTH, &self.frame);
 
         for ent in self.entities.iter() {
-            use std::num::Float;
             use std::f32::consts::PI;
             let angle = ent.material.alpha * PI * 2.0;
             let model = Matrix4::from_translation(&vec3(

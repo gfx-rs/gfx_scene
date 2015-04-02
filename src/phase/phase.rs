@@ -1,9 +1,8 @@
 //! Phase infrastructure for Gfx.
 
-extern crate draw_queue;
-
 use std::cmp::Ordering;
 use std::collections::HashMap;
+use draw_queue;
 use gfx;
 use mem;
 
@@ -158,7 +157,9 @@ pub type CacheMap<
     M: ::Material,
     V: ::ToDepth,
     T: ::Technique<R, M, V>,
-> = HashMap<T::Kernel, mem::MemResult<Object<V::Depth, T::Kernel, T::Params>>>;
+> = HashMap<(T::Kernel, gfx::Mesh<R>),
+    mem::MemResult<Object<V::Depth, T::Kernel, T::Params>>,
+>;
 
 /// A render phase that caches created render objects.
 pub type CachedPhase<
@@ -193,7 +194,9 @@ impl<
     V: ::ToDepth + Copy,
     E: ::Entity<R, M>,
     T: ::Technique<R, M, V>,
-    Y: mem::Memory<T::Kernel, Object<V::Depth, T::Kernel, T::Params>>,
+    Y: mem::Memory<(T::Kernel, gfx::Mesh<R>),
+        Object<V::Depth, T::Kernel, T::Params>,
+    >,
 >QueuePhase<E, V> for Phase<R, M, V, T, Y> where
     T::Params: Clone,
     <T::Params as gfx::shade::ShaderParam>::Link: Copy,    
@@ -210,8 +213,9 @@ impl<
             .unwrap(); //TODO?
         let (orig_mesh, slice) = entity.get_mesh();
         let depth = view_info.to_depth();
+        let key = (kernel, orig_mesh.clone()); //TODO: avoid clone() here
         // Try recalling from memory
-        match self.memory.lookup(kernel) {
+        match self.memory.lookup(&key) {
             Some(Ok(mut o)) => {
                 o.slice = slice.clone();
                 o.depth = depth;
@@ -248,10 +252,13 @@ impl<
                 kernel: kernel,
             });
         // Remember and return
-        self.memory.store(kernel, object.clone());
+        self.memory.store(key, object.clone());
         match object {
             Ok(o) => Ok(self.queue.objects.push(o)),
-            Err(e) => Err(e),
+            Err(e) => {
+                warn!("Phase {}: batch creation failed: {:?}", self.name, e);
+                Err(e)
+            },
         }
     }
 }
@@ -262,7 +269,9 @@ impl<
     M: ::Material,
     V: ::ToDepth + Copy,
     T: ::Technique<R, M, V>,
-    Y: mem::Memory<T::Kernel, Object<V::Depth, T::Kernel, T::Params>>,
+    Y: mem::Memory<(T::Kernel, gfx::Mesh<R>),
+        Object<V::Depth, T::Kernel, T::Params>,
+    >,
 >FlushPhase<R, C> for Phase<R, M, V, T, Y> {
     fn flush(&mut self, frame: &gfx::Frame<R>, renderer: &mut gfx::Renderer<R, C>)
              -> Result<(), FlushError> {
@@ -287,7 +296,9 @@ impl<
     V: ::ToDepth + Copy,
     E: ::Entity<R, M>,
     T: ::Technique<R, M, V>,
-    Y: mem::Memory<T::Kernel, Object<V::Depth, T::Kernel, T::Params>>,
+    Y: mem::Memory<(T::Kernel, gfx::Mesh<R>),
+        Object<V::Depth, T::Kernel, T::Params>
+    >,
 >AbstractPhase<R, C, E, V> for Phase<R, M, V, T, Y> where
     T::Params: Clone,
     <T::Params as gfx::shade::ShaderParam>::Link: Copy,
