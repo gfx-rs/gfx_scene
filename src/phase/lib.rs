@@ -3,7 +3,10 @@
 //! High-level rendering concepts for Gfx. Allow user code to work with
 //! materials, entities, and techniques, instead of batches.
 
+#[macro_use]
+extern crate log;
 extern crate gfx;
+extern crate draw_queue;
 
 mod mem;
 mod phase;

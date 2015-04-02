@@ -173,7 +173,6 @@ impl<
         //scene.cull_frustum = false;
         let num = 10usize;
         let entities = (0..num).map(|i| {
-            use std::num::Float;
             use cgmath::{Aabb3, Point3, vec2};
             let angle = (i as f32) / (num as f32) * std::f32::consts::PI * 2.0;
             let offset = vec2(4.0 * angle.cos(), 4.0 * angle.sin());
