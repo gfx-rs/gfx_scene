@@ -118,6 +118,20 @@ pub struct Camera<P, N> {
     pub node: N,
 }
 
+impl<
+    S: cgmath::BaseFloat + 'static,
+    T: cgmath::ToMatrix4<S> + cgmath::Transform3<S> + Clone,
+    W: World<Scalar = S, Transform = T>,
+    P: cgmath::ToMatrix4<S>
+> Camera<P, W::NodePtr> {
+    /// Get the view-projection matrix, given the `World`.
+    pub fn get_view_projection(&self, world: &W) -> cgmath::Matrix4<S> {
+        use cgmath::{Matrix, Transform};
+        let node_inverse = world.get_transform(&self.node).invert().unwrap();
+        self.projection.to_matrix4().mul_m(&node_inverse.to_matrix4())
+    }
+}
+
 /// An example scene type.
 pub struct Scene<R: gfx::Resources, M, W: World, B, P, V> {
     /// A list of entities in the scene.
