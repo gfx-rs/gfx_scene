@@ -13,13 +13,12 @@ mod phase;
 
 use std::fmt::Debug;
 use std::hash::Hash;
-use std::marker::PhantomFn;
 
 pub use self::phase::{Sort, Object, FlushError, QueuePhase, FlushPhase,
                       Ordered, AbstractPhase, Phase, CachedPhase};
 
 /// Abstract material.
-pub trait Material: PhantomFn<Self> {}
+pub trait Material {}
 
 /// View information that can be transformed into depth.
 pub trait ToDepth {

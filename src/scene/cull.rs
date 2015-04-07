@@ -1,5 +1,4 @@
 use std::fmt::Debug;
-use std::marker::PhantomFn;
 use cgmath;
 use gfx;
 use gfx_phase;
@@ -12,7 +11,7 @@ pub trait CullPhase<
     E: gfx_phase::Entity<R, M>,
     W: World,
     V, //ViewInfo, necessary to be constrained
->: PhantomFn<R> + PhantomFn<M> + PhantomFn<V> {
+> {
     /// Enqueue a series of entities given by an iterator.
     /// Do frustum culling and `ViewInfo` construction on the fly.
     fn enqueue_all<'a,

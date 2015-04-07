@@ -22,6 +22,9 @@ path = "src/scene"
 [dev_dependencies.cgmath]
 git = "https://github.com/bjz/cgmath-rs"
 
+[dev_dependencies.draw_state]
+git = "https://github.com/gfx-rs/draw_state"
+
 [dev_dependencies.gfx]
 git = "https://github.com/gfx-rs/gfx-rs"
 
@@ -35,8 +38,6 @@ git = "https://github.com/gfx-rs/gfx_device_gl"
 [dev_dependencies.glutin]
 git = "https://github.com/tomaka/glutin"
 
-[dev_dependencies]
-draw_state = "*"
 
 [[example]]
 name = "alpha"
