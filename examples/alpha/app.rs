@@ -7,7 +7,7 @@ use gfx_phase;
 use gfx_phase::{QueuePhase, FlushPhase};
 
 #[vertex_format]
-#[derive(Copy)]
+#[derive(Clone, Copy)]
 struct Vertex {
     #[as_float]
     #[name = "a_Pos"]
@@ -74,7 +74,7 @@ struct Material {
 
 impl gfx_phase::Material for Material {}
 
-#[derive(Copy)]
+#[derive(Clone, Copy)]
 struct ViewInfo(Matrix4<f32>);
 
 impl gfx_phase::ToDepth for ViewInfo {
@@ -125,23 +125,17 @@ impl<R: gfx::Resources> gfx_phase::Entity<R, Material> for Entity<R> {
 
 //----------------------------------------
 
-pub struct App<D: gfx::Device> {
-    pub device: D,
+pub struct App<D: gfx::Device, F> {
+    pub graphics: gfx::Graphics<D, F>,
     frame: gfx::Frame<D::Resources>,
-    renderer: gfx::Renderer<D::Resources, D::CommandBuffer>,
     phase: gfx_phase::CachedPhase<D::Resources, Material, ViewInfo, Technique<D::Resources>>,
     entities: Vec<Entity<D::Resources>>,
     proj_view: Matrix4<f32>,
 }
 
-impl<
-    R: gfx::Resources,
-    C: gfx::CommandBuffer<R>,
-    D: gfx::Device<Resources = R, CommandBuffer = C> + Factory<R>
-> App<D> {
-    pub fn new(mut device: D, w: u16, h: u16) -> App<D> {
+impl<D: gfx::Device, F: gfx::Factory<D::Resources>> App<D, F> {
+    pub fn new((device, mut factory): (D, F), w: u16, h: u16) -> App<D, F> {
         use cgmath::{perspective, deg};
-        let renderer = device.create_renderer();
 
         let vertex_data = [
             Vertex::new(-1, -1, -1),
@@ -150,7 +144,7 @@ impl<
             Vertex::new(0, 0, 2),
         ];
 
-        let mesh = device.create_mesh(&vertex_data);
+        let mesh = factory.create_mesh(&vertex_data);
 
         let index_data: &[u8] = &[
             0, 1, 2,
@@ -159,7 +153,7 @@ impl<
             2, 3, 0,
         ];
 
-        let slice = device
+        let slice = factory
             .create_buffer_index(index_data)
             .to_slice(gfx::PrimitiveType::TriangleList);
 
@@ -171,7 +165,7 @@ impl<
 
         let mut phase = gfx_phase::Phase::new_cached(
             "Main",
-            Technique::new(&mut device),
+            Technique::new(&mut factory),
         );
         phase.sort.push(gfx_phase::Sort::BackToFront);
 
@@ -184,9 +178,8 @@ impl<
         );
 
         App {
-            device: device,
+            graphics: (device, factory).into_graphics(),
             frame: gfx::Frame::new(w, h),
-            renderer: renderer,
             phase: phase,
             entities: entities.collect(),
             proj_view: proj.mul_m(&view.mat),
@@ -194,15 +187,14 @@ impl<
     }
 }
 
-impl<D: gfx::Device> App<D> {
+impl<D: gfx::Device, F: gfx::Factory<D::Resources>> App<D, F> {
     pub fn render(&mut self) {
         let clear_data = gfx::ClearData {
             color: [0.3, 0.3, 0.3, 1.0],
             depth: 1.0,
             stencil: 0,
         };
-        self.renderer.reset();
-        self.renderer.clear(clear_data, gfx::COLOR | gfx::DEPTH, &self.frame);
+        self.graphics.clear(clear_data, gfx::COLOR | gfx::DEPTH, &self.frame);
 
         for ent in self.entities.iter() {
             use std::f32::consts::PI;
@@ -215,7 +207,7 @@ impl<D: gfx::Device> App<D> {
         }
         
         self.phase.queue.sort(gfx_phase::Object::back_to_front);
-        self.phase.flush(&self.frame, &mut self.renderer).unwrap();
-        self.device.submit(self.renderer.as_buffer());
+        self.phase.flush(&self.frame, &mut self.graphics.renderer).unwrap();
+        self.graphics.end_frame();
     }
 }

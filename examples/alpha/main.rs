@@ -14,12 +14,11 @@ fn main() {
     window.set_title("Alpha: gfx_phase example");
     unsafe { window.make_current() };
     let (w, h) = window.get_inner_size().unwrap();
-    let device = gfx_device_gl::GlDevice::new(|s| window.get_proc_address(s));
+    let device = gfx_device_gl::create(|s| window.get_proc_address(s));
 
     let mut app = app::App::new(device, w as u16, h as u16);
 
     'main: loop {
-        use gfx::Device;
         // quit when Esc is pressed.
         for event in window.poll_events() {
             match event {
@@ -32,6 +31,6 @@ fn main() {
         app.render();
 
         window.swap_buffers();
-        app.device.after_frame();
+        app.graphics.cleanup();
     }
 }

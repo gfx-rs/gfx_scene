@@ -8,7 +8,7 @@ use gfx_scene;
 static SCALE: f32 = 10.0;
 
 #[vertex_format]
-#[derive(Copy)]
+#[derive(Clone, Copy)]
 struct Vertex {
     #[as_float]
     #[name = "a_Pos"]
@@ -71,7 +71,7 @@ impl<R: gfx::Resources> Technique<R> {
 struct Material;
 impl gfx_phase::Material for Material {}
 
-#[derive(Copy)]
+#[derive(Clone, Copy)]
 struct ViewInfo(cgmath::Vector2<f32>);
 
 impl gfx_phase::ToDepth for ViewInfo {
@@ -143,9 +143,8 @@ impl gfx_scene::World for World {
 
 //----------------------------------------
 
-pub struct App<D: gfx::Device> {
-    pub device: D,
-    renderer: gfx::Renderer<D::Resources, D::CommandBuffer>,
+pub struct App<D: gfx::Device, F> {
+    pub graphics: gfx::Graphics<D, F>,
     frame: gfx::Frame<D::Resources>,
     phase: gfx_phase::Phase<D::Resources, Material, ViewInfo, Technique<D::Resources>, ()>,
     scene: gfx_scene::Scene<D::Resources, Material, World, cgmath::Aabb3<f32>, cgmath::Ortho<f32>, ViewInfo>,
@@ -153,12 +152,8 @@ pub struct App<D: gfx::Device> {
     camera: gfx_scene::Camera<cgmath::Ortho<f32>, <World as gfx_scene::World>::NodePtr>,
 }
 
-impl<
-    R: gfx::Resources,
-    C: gfx::CommandBuffer<R>,
-    D: gfx::Device<Resources = R, CommandBuffer = C> + Factory<R>
-> App<D> {
-    pub fn new(mut device: D, w: u16, h: u16) -> App<D> {
+impl<D: gfx::Device, F: gfx::Factory<D::Resources>> App<D, F> {
+    pub fn new((device, mut factory): (D, F), w: u16, h: u16) -> App<D, F> {
         let vertex_data = [
             Vertex::new(0, 1),
             Vertex::new(0, 0),
@@ -166,7 +161,7 @@ impl<
             Vertex::new(1, 0),
         ];
 
-        let mesh = device.create_mesh(&vertex_data);
+        let mesh = factory.create_mesh(&vertex_data);
         let slice = mesh.to_slice(gfx::PrimitiveType::TriangleStrip);
 
         let mut scene = gfx_scene::Scene::new(World);
@@ -189,11 +184,11 @@ impl<
         scene.entities.extend(entities.into_iter());
 
         //let mut harness = gfx_scene::PhaseHarness::<gfx_device_gl::GlDevice, _>::
-        //    new(scene, device.create_renderer());
+        //    new(scene, factory.create_renderer());
 
         let mut phase = gfx_phase::Phase::new(
             "Main",
-            Technique::new(&mut device),
+            Technique::new(&mut factory),
         );
         phase.sort.push(gfx_phase::Sort::Program);
 
@@ -211,11 +206,8 @@ impl<
             node: scene.world.add(cgmath::Vector2::new(0.0, 0.0))
         };
 
-        let renderer = device.create_renderer();
-
         App {
-            device: device,
-            renderer: renderer,
+            graphics: (device, factory).into_graphics(),
             frame: gfx::Frame::new(w, h),
             phase: phase,
             scene: scene,
@@ -224,7 +216,7 @@ impl<
     }
 }
 
-impl<D: gfx::Device> App<D> {
+impl<D: gfx::Device, F: gfx::Factory<D::Resources>> App<D, F> {
     pub fn render(&mut self) {
         use gfx_scene::AbstractScene;
         let clear_data = gfx::ClearData {
@@ -233,9 +225,9 @@ impl<D: gfx::Device> App<D> {
             stencil: 0,
         };
         //let buf = harness.draw(&camera, &frame).unwrap();
-        self.renderer.reset();
-        self.renderer.clear(clear_data, gfx::COLOR | gfx::DEPTH, &self.frame);
-        self.scene.draw(&mut self.phase, &self.camera, &self.frame, &mut self.renderer).unwrap();
-        self.device.submit(self.renderer.as_buffer());
+        self.graphics.clear(clear_data, gfx::COLOR | gfx::DEPTH, &self.frame);
+        self.scene.draw(&mut self.phase, &self.camera, &self.frame,
+                        &mut self.graphics.renderer).unwrap();
+        self.graphics.end_frame();
     }
 }
