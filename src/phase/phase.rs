@@ -28,10 +28,10 @@ pub enum Sort {
 pub type FlushError = gfx::DrawError<gfx::batch::OutOfBounds>;
 
 /// An aspect of the phase to allow flushing into a Renderer.
-pub trait FlushPhase<R: gfx::Resources, C: gfx::CommandBuffer<R>> {
+pub trait FlushPhase<R: gfx::Resources> {
     /// Flush the queue into a given renderer.
-    fn flush(&mut self, &gfx::Frame<R>, &mut gfx::Renderer<R, C>)
-             -> Result<(), FlushError>;
+    fn flush<O: gfx::Output<R>, C: gfx::CommandBuffer<R>>(&mut self,
+             &O, &mut gfx::Renderer<R, C>) -> Result<(), FlushError>;
 }
 
 /// An aspect of the phase that allows queuing entities for rendering.
@@ -44,9 +44,8 @@ pub trait QueuePhase<E, V: ::ToDepth> {
 
 /// An abstract phase. Needs to be object-safe as phases should be
 /// allowed to be stored in boxed form in containers.
-pub trait AbstractPhase<R: gfx::Resources, C: gfx::CommandBuffer<R>, E, V: ::ToDepth>:
-    QueuePhase<E, V> +
-    FlushPhase<R, C>
+pub trait AbstractPhase<R: gfx::Resources, E, V: ::ToDepth>:
+    QueuePhase<E, V> + FlushPhase<R>
 {
     /// Sort by the default preference.
     fn sort(&mut self);
@@ -265,20 +264,23 @@ impl<
 
 impl<
     R: gfx::Resources,
-    C: gfx::CommandBuffer<R>,
     M: ::Material,
     V: ::ToDepth + Copy,
     T: ::Technique<R, M, V>,
     Y: mem::Memory<(T::Kernel, gfx::Mesh<R>),
         Object<V::Depth, T::Kernel, T::Params>,
     >,
->FlushPhase<R, C> for Phase<R, M, V, T, Y> {
-    fn flush(&mut self, frame: &gfx::Frame<R>, renderer: &mut gfx::Renderer<R, C>)
-             -> Result<(), FlushError> {
+>FlushPhase<R> for Phase<R, M, V, T, Y> {
+    fn flush<
+        O: gfx::Output<R>,
+        C: gfx::CommandBuffer<R>,
+    >(
+        &mut self, output: &O, renderer: &mut gfx::Renderer<R, C>)
+            -> Result<(), FlushError> {
         self.queue.update();
         // accumulate the draws into the renderer
         for o in self.queue.iter() {
-            match renderer.draw(&self.context.bind(&o.batch, &o.slice, &o.params), frame) {
+            match renderer.draw(&self.context.bind(&o.batch, &o.slice, &o.params), output) {
                 Ok(_) => (),
                 e => return e,
             }
@@ -291,7 +293,6 @@ impl<
 
 impl<
     R: gfx::Resources,
-    C: gfx::CommandBuffer<R>,
     M: ::Material,
     V: ::ToDepth + Copy,
     E: ::Entity<R, M>,
@@ -299,7 +300,7 @@ impl<
     Y: mem::Memory<(T::Kernel, gfx::Mesh<R>),
         Object<V::Depth, T::Kernel, T::Params>
     >,
->AbstractPhase<R, C, E, V> for Phase<R, M, V, T, Y> where
+>AbstractPhase<R, E, V> for Phase<R, M, V, T, Y> where
     T::Params: Clone,
     <T::Params as gfx::shade::ShaderParam>::Link: Copy,
 {

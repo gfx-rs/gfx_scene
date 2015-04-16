@@ -4,24 +4,22 @@
 extern crate cgmath;
 extern crate glutin;
 extern crate gfx;
-extern crate gfx_device_gl;
+extern crate gfx_window_glutin;
 extern crate gfx_phase;
 extern crate gfx_scene;
 
 mod app;
 
 fn main() {
-    let window = glutin::WindowBuilder::new().with_vsync().build_strict().unwrap();
-    window.set_title("Beta: gfx_scene example");
-    unsafe { window.make_current() };
-    let (w, h) = window.get_inner_size().unwrap();
+    use gfx::traits::IntoCanvas;
 
-    let device = gfx_device_gl::create(|s| window.get_proc_address(s));
-    let mut app = app::App::new(device, w as u16, h as u16);
+    let mut canvas = gfx_window_glutin::init(glutin::Window::new().unwrap()).into_canvas();
+    canvas.output.window.set_title("Beta: gfx_scene example");
+    let mut app = app::App::new(&mut canvas.factory);
 
     'main: loop {
         // quit when Esc is pressed.
-        for event in window.poll_events() {
+        for event in canvas.output.window.poll_events() {
             match event {
                 glutin::Event::KeyboardInput(_, _, Some(glutin::VirtualKeyCode::Escape)) => break 'main,
                 glutin::Event::Closed => break 'main,
@@ -29,8 +27,8 @@ fn main() {
             }
         }
         
-        app.render();
-        window.swap_buffers();
-        app.graphics.cleanup();
+        app.render(&canvas.output, &mut canvas.renderer);
+
+        canvas.present();
     }
 }

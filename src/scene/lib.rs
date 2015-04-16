@@ -11,10 +11,8 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 mod cull;
-mod harness;
 
 pub use self::cull::CullPhase;
-pub use self::harness::PhaseHarness;
 
 
 /// Scene drawing error.
@@ -46,9 +44,10 @@ pub trait AbstractScene<R: gfx::Resources> {
     /// using a given camera and a frame.
     fn draw<
         C: gfx::CommandBuffer<R>,
-        H: gfx_phase::AbstractPhase<R, C, Self::Entity, Self::ViewInfo> + ?Sized,
+        H: gfx_phase::AbstractPhase<R, Self::Entity, Self::ViewInfo> + ?Sized,
+        O: gfx::Output<R>,
     >(
-        &self, &mut H, &Self::Camera, &gfx::Frame<R>, &mut gfx::Renderer<R, C>)
+        &self, &mut H, &Self::Camera, &O, &mut gfx::Renderer<R, C>)
         -> Result<(), Error>;
 }
 
@@ -57,11 +56,12 @@ pub trait OrderedScene<R: gfx::Resources>: AbstractScene<R> {
     /// Draw the contents with a specific phase, given the ordering function.
     fn draw_ordered<
         C: gfx::CommandBuffer<R>,
-        H: gfx_phase::AbstractPhase<R, C, Self::Entity, Self::ViewInfo> + ?Sized +
+        H: gfx_phase::AbstractPhase<R, Self::Entity, Self::ViewInfo> + ?Sized +
             gfx_phase::Ordered,
+        O: gfx::Output<R>,
         F: Fn(&H::Object, &H::Object) -> Ordering,
     >(
-        &self, &mut H, order: F, &Self::Camera, &gfx::Frame<R>, &mut gfx::Renderer<R, C>)
+        &self, &mut H, order: F, &Self::Camera, &O, &mut gfx::Renderer<R, C>)
         -> Result<(), Error>;
 }
 
@@ -173,9 +173,10 @@ impl<
 
     fn draw<
         C: gfx::CommandBuffer<R>,
-        H: gfx_phase::AbstractPhase<R, C, Entity<R, M, W, B>, V> + ?Sized,
+        H: gfx_phase::AbstractPhase<R, Entity<R, M, W, B>, V> + ?Sized,
+        O: gfx::Output<R>,
     >(  &self, phase: &mut H, camera: &Camera<P, W::NodePtr>,
-        frame: &gfx::Frame<R>, renderer: &mut gfx::Renderer<R, C>)
+        output: &O, renderer: &mut gfx::Renderer<R, C>)
         -> Result<(), Error>
     {
         // enqueue entities
@@ -187,7 +188,7 @@ impl<
         // sort by default criterias
         phase.sort();
         // flush into the renderer
-        phase.flush(frame, renderer).map_err(|e| Error::Flush(e))
+        phase.flush(output, renderer).map_err(|e| Error::Flush(e))
     }
 }
 
@@ -201,12 +202,13 @@ impl<
 > OrderedScene<R> for Scene<R, M, W, B, P, V> {
     fn draw_ordered<
         C: gfx::CommandBuffer<R>,
-        H: gfx_phase::AbstractPhase<R, C, Entity<R, M, W, B>, V> + ?Sized +
+        H: gfx_phase::AbstractPhase<R, Entity<R, M, W, B>, V> + ?Sized +
             gfx_phase::Ordered,
+        O: gfx::Output<R>,
         F: Fn(&H::Object, &H::Object) -> Ordering,
     >(
         &self, phase: &mut H, order: F, camera: &Camera<P, W::NodePtr>,
-        frame: &gfx::Frame<R>, renderer: &mut gfx::Renderer<R, C>)
+        output: &O, renderer: &mut gfx::Renderer<R, C>)
         -> Result<(), Error>
     {
         // enqueue entities
@@ -218,7 +220,7 @@ impl<
         // sort by custom criterias
         phase.sort_with(order);
         // flush into the renderer
-        phase.flush(frame, renderer).map_err(|e| Error::Flush(e))
+        phase.flush(output, renderer).map_err(|e| Error::Flush(e))
     }
 }
 

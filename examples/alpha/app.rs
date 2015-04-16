@@ -125,16 +125,14 @@ impl<R: gfx::Resources> gfx_phase::Entity<R, Material> for Entity<R> {
 
 //----------------------------------------
 
-pub struct App<D: gfx::Device, F> {
-    pub graphics: gfx::Graphics<D, F>,
-    frame: gfx::Frame<D::Resources>,
-    phase: gfx_phase::CachedPhase<D::Resources, Material, ViewInfo, Technique<D::Resources>>,
-    entities: Vec<Entity<D::Resources>>,
+pub struct App<R: gfx::Resources> {
+    phase: gfx_phase::CachedPhase<R, Material, ViewInfo, Technique<R>>,
+    entities: Vec<Entity<R>>,
     proj_view: Matrix4<f32>,
 }
 
-impl<D: gfx::Device, F: gfx::Factory<D::Resources>> App<D, F> {
-    pub fn new((device, mut factory): (D, F), w: u16, h: u16) -> App<D, F> {
+impl<R: gfx::Resources> App<R> {
+    pub fn new<F: gfx::Factory<R>>(factory: &mut F, aspect: f32) -> App<R> {
         use cgmath::{perspective, deg};
 
         let vertex_data = [
@@ -165,11 +163,10 @@ impl<D: gfx::Device, F: gfx::Factory<D::Resources>> App<D, F> {
 
         let mut phase = gfx_phase::Phase::new_cached(
             "Main",
-            Technique::new(&mut factory),
+            Technique::new(factory),
         );
         phase.sort.push(gfx_phase::Sort::BackToFront);
 
-        let aspect = w as f32 / h as f32;
         let proj = perspective(deg(90.0f32), aspect, 1.0, 10.0);
         let view: AffineMatrix3<f32> = Transform::look_at(
             &Point3::new(1.5f32, -5.0, 3.0),
@@ -178,23 +175,20 @@ impl<D: gfx::Device, F: gfx::Factory<D::Resources>> App<D, F> {
         );
 
         App {
-            graphics: (device, factory).into_graphics(),
-            frame: gfx::Frame::new(w, h),
             phase: phase,
             entities: entities.collect(),
             proj_view: proj.mul_m(&view.mat),
         }
     }
-}
 
-impl<D: gfx::Device, F: gfx::Factory<D::Resources>> App<D, F> {
-    pub fn render(&mut self) {
+    pub fn render<O: gfx::Output<R>, C: gfx::CommandBuffer<R>>(&mut self,
+                  output: &O, renderer: &mut gfx::Renderer<R, C>) {
         let clear_data = gfx::ClearData {
             color: [0.3, 0.3, 0.3, 1.0],
             depth: 1.0,
             stencil: 0,
         };
-        self.graphics.clear(clear_data, gfx::COLOR | gfx::DEPTH, &self.frame);
+        renderer.clear(clear_data, gfx::COLOR | gfx::DEPTH, output);
 
         for ent in self.entities.iter() {
             use std::f32::consts::PI;
@@ -207,7 +201,6 @@ impl<D: gfx::Device, F: gfx::Factory<D::Resources>> App<D, F> {
         }
         
         self.phase.queue.sort(gfx_phase::Object::back_to_front);
-        self.phase.flush(&self.frame, &mut self.graphics.renderer).unwrap();
-        self.graphics.end_frame();
+        self.phase.flush(output, renderer).unwrap();
     }
 }

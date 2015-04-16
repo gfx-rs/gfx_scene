@@ -143,17 +143,15 @@ impl gfx_scene::World for World {
 
 //----------------------------------------
 
-pub struct App<D: gfx::Device, F> {
-    pub graphics: gfx::Graphics<D, F>,
-    frame: gfx::Frame<D::Resources>,
-    phase: gfx_phase::Phase<D::Resources, Material, ViewInfo, Technique<D::Resources>, ()>,
-    scene: gfx_scene::Scene<D::Resources, Material, World, cgmath::Aabb3<f32>, cgmath::Ortho<f32>, ViewInfo>,
+pub struct App<R: gfx::Resources> {
+    phase: gfx_phase::Phase<R, Material, ViewInfo, Technique<R>, ()>,
+    scene: gfx_scene::Scene<R, Material, World, cgmath::Aabb3<f32>, cgmath::Ortho<f32>, ViewInfo>,
     //harness
     camera: gfx_scene::Camera<cgmath::Ortho<f32>, <World as gfx_scene::World>::NodePtr>,
 }
 
-impl<D: gfx::Device, F: gfx::Factory<D::Resources>> App<D, F> {
-    pub fn new((device, mut factory): (D, F), w: u16, h: u16) -> App<D, F> {
+impl<R: gfx::Resources> App<R> {
+    pub fn new<F: gfx::Factory<R>>(factory: &mut F) -> App<R> {
         let vertex_data = [
             Vertex::new(0, 1),
             Vertex::new(0, 0),
@@ -188,7 +186,7 @@ impl<D: gfx::Device, F: gfx::Factory<D::Resources>> App<D, F> {
 
         let mut phase = gfx_phase::Phase::new(
             "Main",
-            Technique::new(&mut factory),
+            Technique::new(factory),
         );
         phase.sort.push(gfx_phase::Sort::Program);
 
@@ -207,17 +205,14 @@ impl<D: gfx::Device, F: gfx::Factory<D::Resources>> App<D, F> {
         };
 
         App {
-            graphics: (device, factory).into_graphics(),
-            frame: gfx::Frame::new(w, h),
             phase: phase,
             scene: scene,
             camera: camera,
         }
     }
-}
 
-impl<D: gfx::Device, F: gfx::Factory<D::Resources>> App<D, F> {
-    pub fn render(&mut self) {
+    pub fn render<O: gfx::Output<R>, C: gfx::CommandBuffer<R>>(&mut self,
+                  output: &O, renderer: &mut gfx::Renderer<R, C>) {
         use gfx_scene::AbstractScene;
         let clear_data = gfx::ClearData {
             color: [0.3, 0.3, 0.3, 1.0],
@@ -225,9 +220,7 @@ impl<D: gfx::Device, F: gfx::Factory<D::Resources>> App<D, F> {
             stencil: 0,
         };
         //let buf = harness.draw(&camera, &frame).unwrap();
-        self.graphics.clear(clear_data, gfx::COLOR | gfx::DEPTH, &self.frame);
-        self.scene.draw(&mut self.phase, &self.camera, &self.frame,
-                        &mut self.graphics.renderer).unwrap();
-        self.graphics.end_frame();
+        renderer.clear(clear_data, gfx::COLOR | gfx::DEPTH, output);
+        self.scene.draw(&mut self.phase, &self.camera, output, renderer).unwrap();
     }
 }
