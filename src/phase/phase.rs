@@ -2,6 +2,7 @@
 
 use std::cmp::Ordering;
 use std::collections::HashMap;
+use std::marker::PhantomData;
 use draw_queue;
 use gfx;
 use mem;
@@ -9,26 +10,16 @@ use mem;
 /// Potential error occuring during rendering.
 pub type FlushError = gfx::DrawError<gfx::batch::OutOfBounds>;
 
-/// An aspect of the phase to allow flushing into a Renderer.
-pub trait FlushPhase<R: gfx::Resources> {
-    /// Flush the queue into a given renderer.
-    fn flush<O: gfx::Output<R>, C: gfx::CommandBuffer<R>>(&mut self,
-             &O, &mut gfx::Renderer<R, C>) -> Result<(), FlushError>;
-}
-
-/// An aspect of the phase that allows queuing entities for rendering.
-pub trait QueuePhase<E, V: ::ToDepth> {
+/// An abstract rendering phase.
+pub trait AbstractPhase<R: gfx::Resources, E, V: ::ToDepth> {
     /// Check if it makes sense to draw this entity.
     fn test(&self, &E) -> bool;
     /// Add an entity to the queue.
     fn enqueue(&mut self, &E, V) -> Result<(), gfx::batch::Error>;
+    /// Flush the queue into a given renderer.
+    fn flush<O: gfx::Output<R>, C: gfx::CommandBuffer<R>>(&mut self,
+             &O, &mut gfx::Renderer<R, C>) -> Result<(), FlushError>;
 }
-
-/// An abstract phase. Needs to be object-safe as phases should be
-/// allowed to be stored in boxed form in containers.
-pub trait AbstractPhase<R: gfx::Resources, E, V: ::ToDepth>:
-    QueuePhase<E, V> + FlushPhase<R>
-{}
 
 /// A rendering object, encapsulating the batch and additional info
 /// needed for sorting. It is only exposed for this matter and
@@ -112,6 +103,7 @@ pub struct Phase<
     M: ::Material,
     V: ::ToDepth,
     T: ::Technique<R, M, V>,
+    E,  // Entity
     Y,  // Memory
 >{
     /// Phase name.
@@ -128,6 +120,8 @@ pub struct Phase<
     queue: draw_queue::Queue<Object<V::Depth, T::Kernel, T::Params>>,
     /// Batch context.
     context: gfx::batch::Context<R>,
+    /// Dummy Entity use.
+    dummy: PhantomData<E>,
 }
 
 /// Memory typedef using a `HashMap`.
@@ -146,16 +140,18 @@ pub type CachedPhase<
     M: ::Material,
     V: ::ToDepth,
     T: ::Technique<R, M, V>,
-> = Phase<R, M, V, T, CacheMap<R, M, V, T>>;
+    E,
+> = Phase<R, M, V, T, E, CacheMap<R, M, V, T>>;
 
 impl<
     R: gfx::Resources,
     M: ::Material,
     V: ::ToDepth,
     T: ::Technique<R, M, V>,
-> Phase<R, M, V, T, ()> {
+    E,
+> Phase<R, M, V, T, E, ()> {
     /// Create a new phase from a given technique.
-    pub fn new(name: &str, tech: T) -> Phase<R, M, V, T, ()> {
+    pub fn new(name: &str, tech: T) -> Phase<R, M, V, T, E, ()> {
         Phase {
             name: name.to_string(),
             technique: tech,
@@ -163,11 +159,12 @@ impl<
             memory: (),
             queue: draw_queue::Queue::new(),
             context: gfx::batch::Context::new(),
+            dummy: PhantomData,
         }
     }
 
     /// Enable caching of created render objects.
-    pub fn with_cache(self) -> CachedPhase<R, M, V, T> {
+    pub fn with_cache(self) -> CachedPhase<R, M, V, T, E> {
         Phase {
             name: self.name,
             technique: self.technique,
@@ -175,6 +172,7 @@ impl<
             memory: HashMap::new(),
             queue: self.queue,
             context: self.context,
+            dummy: self.dummy,
         }
     }
 }
@@ -186,11 +184,11 @@ impl<
     E: ::Entity<R, M>,
     T: ::Technique<R, M, V>,
     Y: mem::Memory<(T::Kernel, gfx::Mesh<R>),
-        Object<V::Depth, T::Kernel, T::Params>,
+        Object<V::Depth, T::Kernel, T::Params>
     >,
->QueuePhase<E, V> for Phase<R, M, V, T, Y> where
+>AbstractPhase<R, E, V> for Phase<R, M, V, T, E, Y> where
     T::Params: Clone,
-    <T::Params as gfx::shade::ShaderParam>::Link: Copy,    
+    <T::Params as gfx::shade::ShaderParam>::Link: Copy,
 {
     fn test(&self, entity: &E) -> bool {
         self.technique.test(entity.get_mesh().0, entity.get_material())
@@ -252,23 +250,10 @@ impl<
             },
         }
     }
-}
 
-impl<
-    R: gfx::Resources,
-    M: ::Material,
-    V: ::ToDepth + Copy,
-    T: ::Technique<R, M, V>,
-    Y: mem::Memory<(T::Kernel, gfx::Mesh<R>),
-        Object<V::Depth, T::Kernel, T::Params>,
-    >,
->FlushPhase<R> for Phase<R, M, V, T, Y> {
-    fn flush<
-        O: gfx::Output<R>,
-        C: gfx::CommandBuffer<R>,
-    >(
-        &mut self, output: &O, renderer: &mut gfx::Renderer<R, C>)
-            -> Result<(), FlushError> {
+    fn flush<O: gfx::Output<R>,C: gfx::CommandBuffer<R>>(
+             &mut self, output: &O, renderer: &mut gfx::Renderer<R, C>)
+             -> Result<(), FlushError> {
         if let Some(fun) = self.sort {
             self.queue.sort(fun);
         }
@@ -284,17 +269,3 @@ impl<
         Ok(())
     }
 }
-
-impl<
-    R: gfx::Resources,
-    M: ::Material,
-    V: ::ToDepth + Copy,
-    E: ::Entity<R, M>,
-    T: ::Technique<R, M, V>,
-    Y: mem::Memory<(T::Kernel, gfx::Mesh<R>),
-        Object<V::Depth, T::Kernel, T::Params>
-    >,
->AbstractPhase<R, E, V> for Phase<R, M, V, T, Y> where
-    T::Params: Clone,
-    <T::Params as gfx::shade::ShaderParam>::Link: Copy,
-{}

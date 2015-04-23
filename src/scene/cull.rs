@@ -53,7 +53,7 @@ impl<
     W: World,
     B: cgmath::Bound<W::Scalar> + Debug,
     V: ViewInfo<W::Scalar, W::Transform>,
-    H: gfx_phase::QueuePhase<Entity<R, M, W, B>, V> + ?Sized,
+    H: gfx_phase::AbstractPhase<R, Entity<R, M, W, B>, V> + ?Sized,
 > CullPhase<R, M, Entity<R, M, W, B>, W, V> for H {
     fn enqueue_all<'a,
         I: Iterator<Item = &'a Entity<R, M, W, B>>,

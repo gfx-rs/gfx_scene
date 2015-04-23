@@ -4,7 +4,7 @@ use cgmath::{FixedArray, Transform, AffineMatrix3};
 use gfx;
 use gfx::traits::*;
 use gfx_phase;
-use gfx_phase::{QueuePhase, FlushPhase};
+
 
 #[vertex_format]
 #[derive(Clone, Copy)]
@@ -126,7 +126,7 @@ impl<R: gfx::Resources> gfx_phase::Entity<R, Material> for Entity<R> {
 //----------------------------------------
 
 pub struct App<R: gfx::Resources> {
-    phase: gfx_phase::CachedPhase<R, Material, ViewInfo, Technique<R>>,
+    phase: gfx_phase::CachedPhase<R, Material, ViewInfo, Technique<R>, Entity<R>>,
     entities: Vec<Entity<R>>,
     proj_view: Matrix4<f32>,
 }
@@ -181,6 +181,7 @@ impl<R: gfx::Resources> App<R> {
 
     pub fn render<O: gfx::Output<R>, C: gfx::CommandBuffer<R>>(&mut self,
                   output: &O, renderer: &mut gfx::Renderer<R, C>) {
+        use gfx_phase::AbstractPhase;
         let clear_data = gfx::ClearData {
             color: [0.3, 0.3, 0.3, 1.0],
             depth: 1.0,
