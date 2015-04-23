@@ -161,10 +161,8 @@ impl<R: gfx::Resources> App<R> {
             material: Material { alpha: i as f32 / 10.0 },
         });
 
-        let mut phase = gfx_phase::Phase::new_cached(
-            "Main",
-            Technique::new(factory),
-        );
+        let mut phase = gfx_phase::Phase::new("Main", Technique::new(factory))
+                                         .with_cache();
         phase.sort.push(gfx_phase::Sort::BackToFront);
 
         let proj = perspective(deg(90.0f32), aspect, 1.0, 10.0);

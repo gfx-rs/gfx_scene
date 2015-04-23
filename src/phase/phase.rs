@@ -131,25 +131,6 @@ pub struct Phase<
     context: gfx::batch::Context<R>,
 }
 
-impl<
-    R: gfx::Resources,
-    M: ::Material,
-    V: ::ToDepth,
-    T: ::Technique<R, M, V>,
-> Phase<R, M, V, T, ()> {
-    /// Create a new phase from a given technique.
-    pub fn new(name: &str, tech: T) -> Phase<R, M, V, T, ()> {
-        Phase {
-            name: name.to_string(),
-            technique: tech,
-            sort: Vec::new(),
-            memory: (),
-            queue: draw_queue::Queue::new(),
-            context: gfx::batch::Context::new(),
-        }
-    }
-}
-
 /// Memory typedef using a `HashMap`.
 pub type CacheMap<
     R: gfx::Resources,
@@ -173,16 +154,28 @@ impl<
     M: ::Material,
     V: ::ToDepth,
     T: ::Technique<R, M, V>,
-> Phase<R, M, V, T, CacheMap<R, M, V, T>> {
-    /// Create a new phase that caches created objects.
-    pub fn new_cached(name: &str, tech: T) -> CachedPhase<R, M, V, T> {
+> Phase<R, M, V, T, ()> {
+    /// Create a new phase from a given technique.
+    pub fn new(name: &str, tech: T) -> Phase<R, M, V, T, ()> {
         Phase {
             name: name.to_string(),
             technique: tech,
             sort: Vec::new(),
-            memory: HashMap::new(),
+            memory: (),
             queue: draw_queue::Queue::new(),
             context: gfx::batch::Context::new(),
+        }
+    }
+
+    /// Enable caching of created render objects.
+    pub fn with_cache(self) -> CachedPhase<R, M, V, T> {
+        Phase {
+            name: self.name,
+            technique: self.technique,
+            sort: self.sort,
+            memory: HashMap::new(),
+            queue: self.queue,
+            context: self.context,
         }
     }
 }
