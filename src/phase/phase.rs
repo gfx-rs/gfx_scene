@@ -2,6 +2,7 @@
 
 use std::cmp::Ordering;
 use std::collections::HashMap;
+use std::marker::PhantomData;
 use draw_queue;
 use gfx;
 use mem;
@@ -112,6 +113,7 @@ pub struct Phase<
     M: ::Material,
     V: ::ToDepth,
     T: ::Technique<R, M, V>,
+    E,  // Entity
     Y,  // Memory
 >{
     /// Phase name.
@@ -128,6 +130,8 @@ pub struct Phase<
     queue: draw_queue::Queue<Object<V::Depth, T::Kernel, T::Params>>,
     /// Batch context.
     context: gfx::batch::Context<R>,
+    /// Dummy Entity use.
+    dummy: PhantomData<E>,
 }
 
 /// Memory typedef using a `HashMap`.
@@ -146,16 +150,18 @@ pub type CachedPhase<
     M: ::Material,
     V: ::ToDepth,
     T: ::Technique<R, M, V>,
-> = Phase<R, M, V, T, CacheMap<R, M, V, T>>;
+    E,
+> = Phase<R, M, V, T, E, CacheMap<R, M, V, T>>;
 
 impl<
     R: gfx::Resources,
     M: ::Material,
     V: ::ToDepth,
     T: ::Technique<R, M, V>,
-> Phase<R, M, V, T, ()> {
+    E,
+> Phase<R, M, V, T, E, ()> {
     /// Create a new phase from a given technique.
-    pub fn new(name: &str, tech: T) -> Phase<R, M, V, T, ()> {
+    pub fn new(name: &str, tech: T) -> Phase<R, M, V, T, E, ()> {
         Phase {
             name: name.to_string(),
             technique: tech,
@@ -163,11 +169,12 @@ impl<
             memory: (),
             queue: draw_queue::Queue::new(),
             context: gfx::batch::Context::new(),
+            dummy: PhantomData,
         }
     }
 
     /// Enable caching of created render objects.
-    pub fn with_cache(self) -> CachedPhase<R, M, V, T> {
+    pub fn with_cache(self) -> CachedPhase<R, M, V, T, E> {
         Phase {
             name: self.name,
             technique: self.technique,
@@ -175,6 +182,7 @@ impl<
             memory: HashMap::new(),
             queue: self.queue,
             context: self.context,
+            dummy: self.dummy,
         }
     }
 }
@@ -188,7 +196,7 @@ impl<
     Y: mem::Memory<(T::Kernel, gfx::Mesh<R>),
         Object<V::Depth, T::Kernel, T::Params>,
     >,
->QueuePhase<E, V> for Phase<R, M, V, T, Y> where
+>QueuePhase<E, V> for Phase<R, M, V, T, E, Y> where
     T::Params: Clone,
     <T::Params as gfx::shade::ShaderParam>::Link: Copy,    
 {
@@ -258,11 +266,12 @@ impl<
     R: gfx::Resources,
     M: ::Material,
     V: ::ToDepth + Copy,
+    E: ::Entity<R, M>,
     T: ::Technique<R, M, V>,
     Y: mem::Memory<(T::Kernel, gfx::Mesh<R>),
         Object<V::Depth, T::Kernel, T::Params>,
     >,
->FlushPhase<R> for Phase<R, M, V, T, Y> {
+>FlushPhase<R> for Phase<R, M, V, T, E, Y> {
     fn flush<
         O: gfx::Output<R>,
         C: gfx::CommandBuffer<R>,
@@ -294,7 +303,7 @@ impl<
     Y: mem::Memory<(T::Kernel, gfx::Mesh<R>),
         Object<V::Depth, T::Kernel, T::Params>
     >,
->AbstractPhase<R, E, V> for Phase<R, M, V, T, Y> where
+>AbstractPhase<R, E, V> for Phase<R, M, V, T, E, Y> where
     T::Params: Clone,
     <T::Params as gfx::shade::ShaderParam>::Link: Copy,
 {}

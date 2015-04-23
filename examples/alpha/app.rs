@@ -126,7 +126,7 @@ impl<R: gfx::Resources> gfx_phase::Entity<R, Material> for Entity<R> {
 //----------------------------------------
 
 pub struct App<R: gfx::Resources> {
-    phase: gfx_phase::CachedPhase<R, Material, ViewInfo, Technique<R>>,
+    phase: gfx_phase::CachedPhase<R, Material, ViewInfo, Technique<R>, Entity<R>>,
     entities: Vec<Entity<R>>,
     proj_view: Matrix4<f32>,
 }
