@@ -12,7 +12,7 @@ use std::marker::PhantomData;
 
 mod cull;
 
-pub use self::cull::CullPhase;
+pub use self::cull::{Culler, CullPhase, Frustum};
 
 
 /// Scene drawing error.
@@ -22,13 +22,6 @@ pub enum Error {
     Batch(gfx::batch::Error),
     /// Error in sending a batch for drawing.
     Flush(gfx_phase::FlushError),
-}
-
-/// Abstract information about the view. Supposed to containt at least
-/// Model-View-Projection transform for the shader.
-pub trait ViewInfo<S, T: cgmath::Transform3<S>>: gfx_phase::ToDepth<Depth = S> {
-    /// Construct a new information block.
-    fn new(mvp: cgmath::Matrix4<S>, view: T, model: T) -> Self;
 }
 
 /// Abstract scene that can be drawn into something.
@@ -43,9 +36,9 @@ pub trait AbstractScene<R: gfx::Resources> {
     /// Draw the contents of the scene with a specific phase into a renderer,
     /// using a given camera and a frame.
     fn draw<
-        C: gfx::CommandBuffer<R>,
         H: gfx_phase::AbstractPhase<R, Self::Entity, Self::ViewInfo> + ?Sized,
         O: gfx::Output<R>,
+        C: gfx::CommandBuffer<R>,
     >(
         &self, &mut H, &Self::Camera, &O, &mut gfx::Renderer<R, C>)
         -> Result<(), Error>;
@@ -55,11 +48,11 @@ pub trait AbstractScene<R: gfx::Resources> {
 pub trait OrderedScene<R: gfx::Resources>: AbstractScene<R> {
     /// Draw the contents with a specific phase, given the ordering function.
     fn draw_ordered<
-        C: gfx::CommandBuffer<R>,
         H: gfx_phase::AbstractPhase<R, Self::Entity, Self::ViewInfo> + ?Sized +
             gfx_phase::Ordered,
-        O: gfx::Output<R>,
         F: Fn(&H::Object, &H::Object) -> Ordering,
+        O: gfx::Output<R>,
+        C: gfx::CommandBuffer<R>,
     >(
         &self, &mut H, order: F, &Self::Camera, &O, &mut gfx::Renderer<R, C>)
         -> Result<(), Error>;
@@ -132,6 +125,13 @@ impl<
     }
 }
 
+/// Abstract information about the view. Supposed to containt at least
+/// Model-View-Projection transform for the shader.
+pub trait ViewInfo<S, T: cgmath::Transform3<S>>: gfx_phase::ToDepth<Depth = S> {
+    /// Construct a new information block.
+    fn new(mvp: cgmath::Matrix4<S>, view: T, model: T) -> Self;
+}
+
 /// An example scene type.
 pub struct Scene<R: gfx::Resources, M, W: World, B, P, V> {
     /// A list of entities in the scene.
@@ -139,8 +139,6 @@ pub struct Scene<R: gfx::Resources, M, W: World, B, P, V> {
     /// A list of cameras. It's not really useful, but `P` needs to be
     /// constrained in order to be able to implement `AbstractScene`.
     pub cameras: Vec<Camera<P, W::NodePtr>>,
-    /// A flag controlling the frustum culling.
-    pub cull_frustum: bool,
     /// Spatial world.
     pub world: W,
     _view_dummy: PhantomData<V>,
@@ -152,7 +150,6 @@ impl<R: gfx::Resources, M, W: World, B, P, V> Scene<R, M, W, B, P, V> {
         Scene {
             entities: Vec::new(),
             cameras: Vec::new(),
-            cull_frustum: true,
             world: world,
             _view_dummy: PhantomData,
         }
@@ -172,16 +169,15 @@ impl<
     type Camera = Camera<P, W::NodePtr>;
 
     fn draw<
-        C: gfx::CommandBuffer<R>,
         H: gfx_phase::AbstractPhase<R, Entity<R, M, W, B>, V> + ?Sized,
         O: gfx::Output<R>,
+        C: gfx::CommandBuffer<R>,
     >(  &self, phase: &mut H, camera: &Camera<P, W::NodePtr>,
         output: &O, renderer: &mut gfx::Renderer<R, C>)
         -> Result<(), Error>
     {
         // enqueue entities
-        match phase.enqueue_all(self.entities.iter(), &self.world, camera,
-                                self.cull_frustum) {
+        match phase.enqueue_all(self.entities.iter(), &self.world, camera) {
             Ok(()) => (),
             Err(e) => return Err(Error::Batch(e)),
         };
@@ -201,19 +197,18 @@ impl<
     V: ViewInfo<W::Scalar, W::Transform>,
 > OrderedScene<R> for Scene<R, M, W, B, P, V> {
     fn draw_ordered<
-        C: gfx::CommandBuffer<R>,
         H: gfx_phase::AbstractPhase<R, Entity<R, M, W, B>, V> + ?Sized +
             gfx_phase::Ordered,
-        O: gfx::Output<R>,
         F: Fn(&H::Object, &H::Object) -> Ordering,
+        O: gfx::Output<R>,
+        C: gfx::CommandBuffer<R>,
     >(
         &self, phase: &mut H, order: F, camera: &Camera<P, W::NodePtr>,
         output: &O, renderer: &mut gfx::Renderer<R, C>)
         -> Result<(), Error>
     {
         // enqueue entities
-        match phase.enqueue_all(self.entities.iter(), &self.world, camera,
-                                self.cull_frustum) {
+        match phase.enqueue_all(self.entities.iter(), &self.world, camera) {
             Ok(()) => (),
             Err(e) => return Err(Error::Batch(e)),
         };

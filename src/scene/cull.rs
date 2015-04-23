@@ -1,8 +1,35 @@
 use std::fmt::Debug;
+use std::marker::PhantomData;
 use cgmath;
 use gfx;
 use gfx_phase;
 use super::{World, Camera, Entity, ViewInfo};
+
+
+/// Generic bound culler.
+pub trait Culler<S, B: cgmath::Bound<S>> {
+    /// Start a new culling session.
+    fn init(&mut self);
+    /// Cull a bound with a given transformation matrix.
+    fn cull(&mut self, &B, &cgmath::Matrix4<S>) -> cgmath::Relation;
+}
+
+impl<S, B: cgmath::Bound<S>> Culler<S, B> for () {
+    fn init(&mut self) {}
+    fn cull(&mut self, _: &B, _: &cgmath::Matrix4<S>) -> cgmath::Relation {
+        cgmath::Relation::Cross
+    }
+}
+
+/// Frustum culler.
+pub struct Frustum<S, B>(PhantomData<(S, B)>);
+
+impl<S: cgmath::BaseFloat, B: cgmath::Bound<S>> Culler<S, B> for Frustum<S, B> {
+    fn init(&mut self) {}
+    fn cull(&mut self, bound: &B, mvp: &cgmath::Matrix4<S>) -> cgmath::Relation {
+        bound.relate_clip_space(mvp)
+    }
+}
 
 /// An extension trait for a Phase that supports frustum culling.
 pub trait CullPhase<
@@ -17,8 +44,7 @@ pub trait CullPhase<
     fn enqueue_all<'a,
         I: Iterator<Item = &'a E>,
         P: cgmath::Projection<W::Scalar>,
-    >(  &mut self, entities: I, world: &W, camera: &Camera<P, W::NodePtr>,
-        cull_frustum: bool) -> Result<(), gfx::batch::Error>;
+    >(  &mut self, entities: I, world: &W, camera: &Camera<P, W::NodePtr>) -> Result<(), gfx::batch::Error>;
 }
 
 impl<
@@ -32,8 +58,8 @@ impl<
     fn enqueue_all<'a,
         I: Iterator<Item = &'a Entity<R, M, W, B>>,
         P: cgmath::Projection<W::Scalar>,
-    >(  &mut self, entities: I, world: &W, camera: &Camera<P, W::NodePtr>,
-        cull_frustum: bool) -> Result<(), gfx::batch::Error>
+    >(  &mut self, entities: I, world: &W, camera: &Camera<P, W::NodePtr>)
+        -> Result<(), gfx::batch::Error>
     where
         R: 'a,
         R::Buffer: 'a,
@@ -56,6 +82,8 @@ impl<
                                .invert().unwrap();
         let projection = camera.projection.to_matrix4()
                                .mul_m(&cam_inverse.to_matrix4());
+        let mut culler = Frustum(PhantomData); //TODO
+        culler.init();
         for entity in entities {
             if !self.test(entity) {
                 continue
@@ -63,7 +91,7 @@ impl<
             let model = world.get_transform(&entity.node);
             let view = cam_inverse.concat(&model);
             let mvp = projection.mul_m(&model.to_matrix4());
-            if cull_frustum && entity.bound.relate_clip_space(&mvp) == cgmath::Relation::Out {
+            if culler.cull(&entity.bound, &mvp) == cgmath::Relation::Out {
                 continue
             }
             let view_info = ViewInfo::new(mvp, view, model.clone());
