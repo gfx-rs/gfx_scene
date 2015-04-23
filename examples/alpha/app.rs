@@ -163,7 +163,7 @@ impl<R: gfx::Resources> App<R> {
 
         let mut phase = gfx_phase::Phase::new("Main", Technique::new(factory))
                                          .with_cache();
-        phase.sort.push(gfx_phase::Sort::BackToFront);
+        phase.sort = Some(gfx_phase::sort::back_to_front);
 
         let proj = perspective(deg(90.0f32), aspect, 1.0, 10.0);
         let view: AffineMatrix3<f32> = Transform::look_at(
@@ -198,7 +198,6 @@ impl<R: gfx::Resources> App<R> {
             self.phase.enqueue(ent, view_info).unwrap();
         }
         
-        self.phase.queue.sort(gfx_phase::Object::back_to_front);
         self.phase.flush(output, renderer).unwrap();
     }
 }

@@ -184,11 +184,8 @@ impl<R: gfx::Resources> App<R> {
         //let mut harness = gfx_scene::PhaseHarness::<gfx_device_gl::GlDevice, _>::
         //    new(scene, factory.create_renderer());
 
-        let mut phase = gfx_phase::Phase::new(
-            "Main",
-            Technique::new(factory),
-        );
-        phase.sort.push(gfx_phase::Sort::Program);
+        let mut phase = gfx_phase::Phase::new("Main", Technique::new(factory));
+        phase.sort = Some(gfx_phase::sort::program);
 
         //harness.phases.push(Box::new(phase));
         //harness.clear = Some(clear_data);

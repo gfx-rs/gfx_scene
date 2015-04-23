@@ -6,24 +6,6 @@ use draw_queue;
 use gfx;
 use mem;
 
-/// Type of phase sorting.
-pub enum Sort {
-    /// Sort by depth, front-to-back. Useful for opaque objects that updates
-    /// the depth buffer. The front stuff will occlude more pixels, leaving
-    /// less work to be done for the farther objects.
-    FrontToBack,
-    /// Sort by depth, back-to-front. Useful for transparent objects, since
-    /// blending should take into account everything that lies behind.
-    BackToFront,
-    /// Sort by shader program. Switching a program is one of the heaviest
-    /// state changes, so this variant is useful when the order is not important.
-    Program,
-    /// Sort by mesh. Allows minimizing the vertex format changes.
-    Mesh,
-    /// Sort by draw state.
-    DrawState,
-}
-
 /// Potential error occuring during rendering.
 pub type FlushError = gfx::DrawError<gfx::batch::OutOfBounds>;
 
@@ -46,20 +28,7 @@ pub trait QueuePhase<E, V: ::ToDepth> {
 /// allowed to be stored in boxed form in containers.
 pub trait AbstractPhase<R: gfx::Resources, E, V: ::ToDepth>:
     QueuePhase<E, V> + FlushPhase<R>
-{
-    /// Sort by the default preference.
-    fn sort(&mut self);
-}
-
-/// Something that can be ordered with a custom function.
-pub trait Ordered {
-    /// Type of the thing to order.
-    type Object;
-    /// Sort with a custom comparison function.
-    fn sort_with<
-        F: Fn(&Self::Object, &Self::Object) -> Ordering,
-    >(&mut self, F);
-}
+{}
 
 /// A rendering object, encapsulating the batch and additional info
 /// needed for sorting. It is only exposed for this matter and
@@ -93,18 +62,46 @@ impl<S: PartialOrd, K, P: gfx::shade::ShaderParam> Object<S, K, P> {
         self.depth.partial_cmp(&other.depth)
             .unwrap_or(Ordering::Equal)
     }
+}
 
-    /// Order by depth, front-to-back. Useful for opaque objects that updates
+/// A container for the standard sorting methods.
+pub mod sort {
+    use std::cmp::Ordering;
+    use gfx::shade::ShaderParam;
+    use super::Object;
+    /// Sort by depth, front-to-back. Useful for opaque objects that updates
     /// the depth buffer. The front stuff will occlude more pixels, leaving
     /// less work to be done for the farther objects.
-    pub fn front_to_back(a: &Object<S, K, P>, b: &Object<S, K, P>) -> Ordering {
+    pub fn front_to_back<S: PartialOrd, K, P: ShaderParam>(
+                         a: &Object<S, K, P>, b: &Object<S, K, P>) -> Ordering
+    {
         a.cmp_depth(b)
     }
-
-    /// Order by depth, back-to-front. Useful for transparent objects, since
+    /// Sort by depth, back-to-front. Useful for transparent objects, since
     /// blending should take into account everything that lies behind.
-    pub fn back_to_front(a: &Object<S, K, P>, b: &Object<S, K, P>) -> Ordering {
+    pub fn back_to_front<S: PartialOrd, K, P: ShaderParam>(
+                         a: &Object<S, K, P>, b: &Object<S, K, P>) -> Ordering
+    {
         b.cmp_depth(a)
+    }
+    /// Sort by shader program. Switching a program is one of the heaviest
+    /// state changes, so this variant is useful when the order is not important.
+    pub fn program<S, K, P: ShaderParam>(a: &Object<S, K, P>, b: &Object<S, K, P>)
+                   -> Ordering
+    {
+        a.batch.cmp_program(&b.batch)
+    }
+    /// Sort by mesh. Allows minimizing the vertex format changes.
+    pub fn mesh<S, K, P: ShaderParam>(a: &Object<S, K, P>, b: &Object<S, K, P>)
+                -> Ordering
+    {
+        a.batch.cmp_mesh(&b.batch)
+    }
+    /// Sort by draw state.
+    pub fn state<S, K, P: ShaderParam>(a: &Object<S, K, P>, b: &Object<S, K, P>)
+                 -> Ordering
+    {
+        a.batch.cmp_state(&b.batch)
     }
 }
 
@@ -121,12 +118,14 @@ pub struct Phase<
     pub name: String,
     /// Contained technique.
     pub technique: T,
-    /// Sorting criteria vector. The first element has the highest priority. 
-    pub sort: Vec<Sort>,
+    /// Sorting function.
+    pub sort: Option<fn(&Object<V::Depth, T::Kernel, T::Params>,
+                        &Object<V::Depth, T::Kernel, T::Params>)
+                        -> Ordering>,
     /// Phase memory.
     memory: Y,
     /// Sorted draw queue.
-    pub queue: draw_queue::Queue<Object<V::Depth, T::Kernel, T::Params>>,
+    queue: draw_queue::Queue<Object<V::Depth, T::Kernel, T::Params>>,
     /// Batch context.
     context: gfx::batch::Context<R>,
 }
@@ -160,7 +159,7 @@ impl<
         Phase {
             name: name.to_string(),
             technique: tech,
-            sort: Vec::new(),
+            sort: None,
             memory: (),
             queue: draw_queue::Queue::new(),
             context: gfx::batch::Context::new(),
@@ -270,7 +269,9 @@ impl<
     >(
         &mut self, output: &O, renderer: &mut gfx::Renderer<R, C>)
             -> Result<(), FlushError> {
-        self.queue.update();
+        if let Some(fun) = self.sort {
+            self.queue.sort(fun);
+        }
         // accumulate the draws into the renderer
         for o in self.queue.iter() {
             match renderer.draw(&self.context.bind(&o.batch, &o.slice, &o.params), output) {
@@ -296,39 +297,4 @@ impl<
 >AbstractPhase<R, E, V> for Phase<R, M, V, T, Y> where
     T::Params: Clone,
     <T::Params as gfx::shade::ShaderParam>::Link: Copy,
-{
-    fn sort(&mut self) {
-        match self.sort.first() {
-            Some(&Sort::FrontToBack) =>
-                self.queue.sort(|a, b| a.cmp_depth(&b)),
-            Some(&Sort::BackToFront) =>
-                self.queue.sort(|a, b| b.cmp_depth(&a)),
-            Some(&Sort::Program) =>
-                self.queue.sort(|a, b| a.batch.cmp_program(&b.batch)),
-            Some(&Sort::Mesh) =>
-                self.queue.sort(|a, b| a.batch.cmp_mesh(&b.batch)),
-            Some(&Sort::DrawState) =>
-                self.queue.sort(|a, b| a.batch.cmp_state(&b.batch)),
-            None => (),
-        }
-    }
-}
-
-impl<
-    R: gfx::Resources,
-    M: ::Material,
-    V: ::ToDepth,
-    T: ::Technique<R, M, V>,
-    Y,
-> Ordered for Phase<R, M, V, T, Y> {
-    type Object = Object<V::Depth, T::Kernel, T::Params>;
-
-    fn sort_with<
-        F: Fn(
-            &Object<V::Depth, T::Kernel, T::Params>,
-            &Object<V::Depth, T::Kernel, T::Params>)
-            -> Ordering,
-    >(&mut self, fun: F) {
-        self.queue.sort(fun);
-    }
-}
+{}

@@ -14,8 +14,8 @@ mod phase;
 use std::fmt::Debug;
 use std::hash::Hash;
 
-pub use self::phase::{Sort, Object, FlushError, QueuePhase, FlushPhase,
-                      Ordered, AbstractPhase, Phase, CachedPhase};
+pub use self::phase::{Object, FlushError, QueuePhase, FlushPhase,
+                      sort, AbstractPhase, CachedPhase, Phase};
 
 /// Abstract material.
 pub trait Material {}
