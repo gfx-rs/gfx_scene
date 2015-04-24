@@ -23,6 +23,9 @@ pub enum Error {
     Flush(gfx_phase::FlushError),
 }
 
+/// Number of enitites that failed to enqueue.
+pub type FailCount = usize;
+
 /// Abstract scene that can be drawn into something.
 pub trait AbstractScene<R: gfx::Resources> {
     /// A type of the view information.
@@ -40,7 +43,7 @@ pub trait AbstractScene<R: gfx::Resources> {
         C: gfx::CommandBuffer<R>,
     >(
         &self, &mut H, &Self::Camera, &O, &mut gfx::Renderer<R, C>)
-        -> Result<(), Error>;
+        -> Result<FailCount, Error>;
 }
 
 /// A class that manages spatial relations between objects.
@@ -159,15 +162,18 @@ impl<
         C: gfx::CommandBuffer<R>,
     >(  &self, phase: &mut H, camera: &Camera<P, W::NodePtr>,
         output: &O, renderer: &mut gfx::Renderer<R, C>)
-        -> Result<(), Error>
+        -> Result<FailCount, Error>
     {
         // enqueue entities
-        match phase.enqueue_all(self.entities.iter(), &self.world, camera) {
-            Ok(()) => (),
+        let num_fail = match phase.enqueue_all(self.entities.iter(), &self.world, camera) {
+            Ok(num) => num,
             Err(e) => return Err(Error::Batch(e)),
         };
         // flush into the renderer
-        phase.flush(output, renderer).map_err(|e| Error::Flush(e))
+        match phase.flush(output, renderer) {
+            Ok(()) => Ok(num_fail),
+            Err(e) => Err(Error::Flush(e)),
+        }
     }
 }
 

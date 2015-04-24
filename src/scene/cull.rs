@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use cgmath;
 use gfx;
 use gfx_phase;
-use super::{World, Camera, Entity, ViewInfo};
+use super::{FailCount, World, Camera, Entity, ViewInfo};
 
 
 /// Generic bound culler.
@@ -44,7 +44,8 @@ pub trait CullPhase<
     fn enqueue_all<'a,
         I: Iterator<Item = &'a E>,
         P: cgmath::Projection<W::Scalar>,
-    >(  &mut self, entities: I, world: &W, camera: &Camera<P, W::NodePtr>) -> Result<(), gfx::batch::Error>;
+    >(  &mut self, entities: I, world: &W, camera: &Camera<P, W::NodePtr>)
+        -> Result<FailCount, gfx::batch::Error>;
 }
 
 impl<
@@ -59,7 +60,7 @@ impl<
         I: Iterator<Item = &'a Entity<R, M, W, B>>,
         P: cgmath::Projection<W::Scalar>,
     >(  &mut self, entities: I, world: &W, camera: &Camera<P, W::NodePtr>)
-        -> Result<(), gfx::batch::Error>
+        -> Result<FailCount, gfx::batch::Error>
     where
         R: 'a,
         R::Buffer: 'a,
@@ -84,6 +85,7 @@ impl<
                                .mul_m(&cam_inverse.to_matrix4());
         let mut culler = Frustum(PhantomData); //TODO
         culler.init();
+        let mut num_fail = 0;
         for entity in entities {
             if !self.test(entity) {
                 continue
@@ -95,11 +97,10 @@ impl<
                 continue
             }
             let view_info = ViewInfo::new(mvp, view, model.clone());
-            match self.enqueue(entity, view_info) {
-                Ok(()) => (),
-                Err(e) => return Err(e),
+            if self.enqueue(entity, view_info).is_err() {
+                num_fail += 1;
             }
         }
-        Ok(())
+        Ok(num_fail)
     }
 }
