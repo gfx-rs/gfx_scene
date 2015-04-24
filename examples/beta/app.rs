@@ -148,7 +148,6 @@ pub struct App<R: gfx::Resources> {
                             gfx_scene::Entity<R, Material, World, cgmath::Aabb3<f32>>,
                             ()>,
     scene: gfx_scene::Scene<R, Material, World, cgmath::Aabb3<f32>, cgmath::Ortho<f32>, ViewInfo>,
-    //harness
     camera: gfx_scene::Camera<cgmath::Ortho<f32>, <World as gfx_scene::World>::NodePtr>,
 }
 
@@ -165,7 +164,6 @@ impl<R: gfx::Resources> App<R> {
         let slice = mesh.to_slice(gfx::PrimitiveType::TriangleStrip);
 
         let mut scene = gfx_scene::Scene::new(World);
-        //scene.cull_frustum = false;
         let num = 10usize;
         let entities = (0..num).map(|i| {
             use cgmath::{Aabb3, Point3, vec2};
@@ -183,14 +181,8 @@ impl<R: gfx::Resources> App<R> {
         }).collect::<Vec<_>>();
         scene.entities.extend(entities.into_iter());
 
-        //let mut harness = gfx_scene::PhaseHarness::<gfx_device_gl::GlDevice, _>::
-        //    new(scene, factory.create_renderer());
-
-        let mut phase = gfx_phase::Phase::new("Main", Technique::new(factory));
-        phase.sort = Some(gfx_phase::sort::program);
-
-        //harness.phases.push(Box::new(phase));
-        //harness.clear = Some(clear_data);
+        let phase = gfx_phase::Phase::new("Main", Technique::new(factory))
+                                     .with_sort(gfx_phase::sort::program);
 
         let camera = gfx_scene::Camera {
             name: "Cam".to_string(),
@@ -199,7 +191,6 @@ impl<R: gfx::Resources> App<R> {
                 bottom: -SCALE, top: SCALE,
                 near: -1f32, far: 1f32,
             },
-            //node: harness.scene.world.add(cgmath::Vector2::new(0.0, 0.0)),
             node: scene.world.add(cgmath::Vector2::new(0.0, 0.0))
         };
 
@@ -218,7 +209,6 @@ impl<R: gfx::Resources> App<R> {
             depth: 1.0,
             stencil: 0,
         };
-        //let buf = harness.draw(&camera, &frame).unwrap();
         renderer.clear(clear_data, gfx::COLOR | gfx::DEPTH, output);
         self.scene.draw(&mut self.phase, &self.camera, output, renderer).unwrap();
     }

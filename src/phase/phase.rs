@@ -96,6 +96,9 @@ pub mod sort {
     }
 }
 
+/// Ordering function.
+pub type OrderFun<S, K, P> = fn(&Object<S, K, P>, &Object<S, K, P>) -> Ordering;
+
 /// Phase is doing batch construction, accumulation, and memorization,
 /// based on a given technique.
 pub struct Phase<
@@ -111,9 +114,7 @@ pub struct Phase<
     /// Contained technique.
     pub technique: T,
     /// Sorting function.
-    pub sort: Option<fn(&Object<V::Depth, T::Kernel, T::Params>,
-                        &Object<V::Depth, T::Kernel, T::Params>)
-                        -> Ordering>,
+    pub sort: Option<OrderFun<V::Depth, T::Kernel, T::Params>>,
     /// Phase memory.
     memory: Y,
     /// Sorted draw queue.
@@ -160,6 +161,15 @@ impl<
             queue: draw_queue::Queue::new(),
             context: gfx::batch::Context::new(),
             dummy: PhantomData,
+        }
+    }
+
+    /// Enable sorting of rendered objects.
+    pub fn with_sort(self, fun: OrderFun<V::Depth, T::Kernel, T::Params>)
+                     -> Phase<R, M, V, T, E, ()> {
+        Phase {
+            sort: Some(fun),
+            .. self
         }
     }
 

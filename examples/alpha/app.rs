@@ -161,9 +161,9 @@ impl<R: gfx::Resources> App<R> {
             material: Material { alpha: i as f32 / 10.0 },
         });
 
-        let mut phase = gfx_phase::Phase::new("Main", Technique::new(factory))
-                                         .with_cache();
-        phase.sort = Some(gfx_phase::sort::back_to_front);
+        let phase = gfx_phase::Phase::new("Main", Technique::new(factory))
+                                     .with_sort(gfx_phase::sort::back_to_front)
+                                     .with_cache();
 
         let proj = perspective(deg(90.0f32), aspect, 1.0, 10.0);
         let view: AffineMatrix3<f32> = Transform::look_at(
