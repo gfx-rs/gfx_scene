@@ -51,7 +51,8 @@ impl<T> Queue<T> {
             ));
         }else
         if self.objects.len() < ni {
-            self.indices.retain(|&Id(i, _)| (i as usize) < ni);
+            let no = self.objects.len();
+            self.indices.retain(|&Id(i, _)| (i as usize) < no);
         }
         debug_assert!(self.is_ready());
     }
