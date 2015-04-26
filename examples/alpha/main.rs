@@ -10,7 +10,7 @@ extern crate gfx_phase;
 mod app;
 
 fn main() {
-    use gfx::traits::IntoCanvas;
+    use gfx::traits::*;
 
     let mut canvas = gfx_window_glutin::init(glutin::Window::new().unwrap()).into_canvas();
     canvas.output.window.set_title("Alpha: gfx_phase example");
@@ -27,8 +27,7 @@ fn main() {
             }
         }
         
-        app.render(&canvas.output, &mut canvas.renderer);
-
+        app.render(&mut canvas);
         canvas.present();
     }
 }

@@ -201,15 +201,14 @@ impl<R: gfx::Resources> App<R> {
         }
     }
 
-    pub fn render<O: gfx::Output<R>, C: gfx::CommandBuffer<R>>(&mut self,
-                  output: &O, renderer: &mut gfx::Renderer<R, C>) {
+    pub fn render<S: gfx::Stream<R>>(&mut self, stream: &mut S) {
         use gfx_scene::AbstractScene;
         let clear_data = gfx::ClearData {
             color: [0.3, 0.3, 0.3, 1.0],
             depth: 1.0,
             stencil: 0,
         };
-        renderer.clear(clear_data, gfx::COLOR | gfx::DEPTH, output);
-        self.scene.draw(&mut self.phase, &self.camera, output, renderer).unwrap();
+        stream.clear(clear_data);
+        self.scene.draw(&mut self.phase, &self.camera, stream).unwrap();
     }
 }

@@ -35,15 +35,11 @@ pub trait AbstractScene<R: gfx::Resources> {
     /// A type of the camera.
     type Camera;
 
-    /// Draw the contents of the scene with a specific phase into a renderer,
-    /// using a given camera and a frame.
-    fn draw<
-        H: gfx_phase::AbstractPhase<R, Self::Entity, Self::ViewInfo> + ?Sized,
-        O: gfx::Output<R>,
-        C: gfx::CommandBuffer<R>,
-    >(
-        &self, &mut H, &Self::Camera, &O, &mut gfx::Renderer<R, C>)
-        -> Result<FailCount, Error>;
+    /// Draw the contents of the scene with a specific phase into a stream.
+    fn draw<H, S>(&self, &mut H, &Self::Camera, &mut S)
+            -> Result<FailCount, Error> where
+        H: gfx_phase::AbstractPhase<R, Self::Entity, Self::ViewInfo>,
+        S: gfx::Stream<R>;
 }
 
 /// A class that manages spatial relations between objects.
@@ -156,13 +152,10 @@ impl<
     type Entity = Entity<R, M, W, B>;
     type Camera = Camera<P, W::NodePtr>;
 
-    fn draw<
-        H: gfx_phase::AbstractPhase<R, Entity<R, M, W, B>, V> + ?Sized,
-        O: gfx::Output<R>,
-        C: gfx::CommandBuffer<R>,
-    >(  &self, phase: &mut H, camera: &Camera<P, W::NodePtr>,
-        output: &O, renderer: &mut gfx::Renderer<R, C>)
-        -> Result<FailCount, Error>
+    fn draw<H, S>(&self, phase: &mut H, camera: &Camera<P, W::NodePtr>,
+            stream: &mut S) -> Result<FailCount, Error> where
+        H: gfx_phase::AbstractPhase<R, Entity<R, M, W, B>, V>,
+        S: gfx::Stream<R>,
     {
         // enqueue entities
         let num_fail = match phase.enqueue_all(self.entities.iter(), &self.world, camera) {
@@ -170,7 +163,7 @@ impl<
             Err(e) => return Err(Error::Batch(e)),
         };
         // flush into the renderer
-        match phase.flush(output, renderer) {
+        match phase.flush(stream) {
             Ok(()) => Ok(num_fail),
             Err(e) => Err(Error::Flush(e)),
         }

@@ -16,9 +16,9 @@ pub trait AbstractPhase<R: gfx::Resources, E, V: ::ToDepth> {
     fn test(&self, &E) -> bool;
     /// Add an entity to the queue.
     fn enqueue(&mut self, &E, V) -> Result<(), gfx::batch::Error>;
-    /// Flush the queue into a given renderer.
-    fn flush<O: gfx::Output<R>, C: gfx::CommandBuffer<R>>(&mut self,
-             &O, &mut gfx::Renderer<R, C>) -> Result<(), FlushError>;
+    /// Flush the queue into a given stream.
+    fn flush<S: gfx::Stream<R>>(&mut self, stream: &mut S)
+             -> Result<(), FlushError>;
 }
 
 /// A rendering object, encapsulating the batch and additional info
@@ -261,15 +261,14 @@ impl<
         }
     }
 
-    fn flush<O: gfx::Output<R>,C: gfx::CommandBuffer<R>>(
-             &mut self, output: &O, renderer: &mut gfx::Renderer<R, C>)
+    fn flush<S: gfx::Stream<R>>(&mut self, stream: &mut S)
              -> Result<(), FlushError> {
         if let Some(fun) = self.sort {
             self.queue.sort(fun);
         }
         // accumulate the draws into the renderer
         for o in self.queue.iter() {
-            match renderer.draw(&self.context.bind(&o.batch, &o.slice, &o.params), output) {
+            match stream.draw(&self.context.bind(&o.batch, &o.slice, &o.params)) {
                 Ok(_) => (),
                 e => return e,
             }

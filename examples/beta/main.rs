@@ -27,8 +27,7 @@ fn main() {
             }
         }
         
-        app.render(&canvas.output, &mut canvas.renderer);
-
+        app.render(&mut canvas);
         canvas.present();
     }
 }

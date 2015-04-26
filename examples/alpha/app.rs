@@ -179,15 +179,14 @@ impl<R: gfx::Resources> App<R> {
         }
     }
 
-    pub fn render<O: gfx::Output<R>, C: gfx::CommandBuffer<R>>(&mut self,
-                  output: &O, renderer: &mut gfx::Renderer<R, C>) {
+    pub fn render<S: gfx::Stream<R>>(&mut self, stream: &mut S) {
         use gfx_phase::AbstractPhase;
         let clear_data = gfx::ClearData {
             color: [0.3, 0.3, 0.3, 1.0],
             depth: 1.0,
             stencil: 0,
         };
-        renderer.clear(clear_data, gfx::COLOR | gfx::DEPTH, output);
+        stream.clear(clear_data);
 
         for ent in self.entities.iter() {
             use std::f32::consts::PI;
@@ -199,6 +198,6 @@ impl<R: gfx::Resources> App<R> {
             self.phase.enqueue(ent, view_info).unwrap();
         }
         
-        self.phase.flush(output, renderer).unwrap();
+        self.phase.flush(stream).unwrap();
     }
 }
