@@ -11,7 +11,7 @@ use std::marker::PhantomData;
 
 mod cull;
 
-pub use self::cull::{Culler, CullPhase, Frustum};
+pub use self::cull::{Culler, CullScene, Frustum};
 
 
 /// Scene drawing error.
@@ -149,10 +149,12 @@ impl<
         S: gfx::Stream<R>,
     {
         // enqueue entities
-        let num_fail = match phase.enqueue_all(self.entities.iter(), &self.world, camera) {
-            Ok(num) => num,
-            Err(e) => return Err(Error::Batch(e)),
-        };
+        //let num_fail = match phase.enqueue_all(self.entities.iter(), &self.world, camera) {
+        //    Ok(num) => num,
+        //    Err(e) => return Err(Error::Batch(e)),
+        //};
+        //TODO!
+        let num_fail = 0;
         // flush into the renderer
         match phase.flush(stream) {
             Ok(()) => Ok(num_fail),

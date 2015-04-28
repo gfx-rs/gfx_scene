@@ -11,11 +11,9 @@ pub type FlushError = gfx::DrawError<gfx::batch::OutOfBounds>;
 
 /// An abstract rendering phase.
 pub trait AbstractPhase<R: gfx::Resources, M, V: ::ToDepth> {
-    /// Check if it makes sense to draw this entity.
-    fn test(&self, &gfx::Mesh<R>, &M) -> bool;
     /// Add an entity to the queue.
-    fn enqueue(&mut self, &gfx::Mesh<R>, &gfx::Slice<R>, &M, V)
-               -> Result<(), gfx::batch::Error>;
+    fn enqueue(&mut self, &gfx::Mesh<R>, &gfx::Slice<R>, &M, &V)
+               -> Result<bool, gfx::batch::Error>;
     /// Flush the queue into a given stream.
     fn flush<S: gfx::Stream<R>>(&mut self, stream: &mut S)
              -> Result<(), FlushError>;
@@ -192,15 +190,13 @@ impl<
     T::Params: Clone,
     <T::Params as gfx::shade::ShaderParam>::Link: Copy,
 {
-    fn test(&self, mesh: &gfx::Mesh<R>, material: &M) -> bool {
-        self.technique.test(mesh, material).is_some()
-    }
-
     fn enqueue(&mut self, orig_mesh: &gfx::Mesh<R>, slice: &gfx::Slice<R>,
-               material: &M, view_info: V)
-               -> Result<(), gfx::batch::Error> {
-        let kernel = self.technique.test(orig_mesh, material)
-                                   .unwrap(); //TODO?
+               material: &M, view_info: &V)
+               -> Result<bool, gfx::batch::Error> {
+        let kernel = match self.technique.test(orig_mesh, material) {
+            Some(k) => k,
+            None => return Ok(false),
+        };
         let depth = view_info.to_depth();
         let key = (kernel, orig_mesh.clone()); //TODO: avoid clone() here
         // Try recalling from memory
@@ -209,9 +205,9 @@ impl<
                 o.slice = slice.clone();
                 o.depth = depth;
                 assert_eq!(o.kernel, kernel);
-                self.technique.fix_params(material, &view_info, &mut o.params);
+                self.technique.fix_params(material, view_info, &mut o.params);
                 self.queue.objects.push(o);
-                return Ok(())
+                return Ok(true)
             },
             Some(Err(e)) => return Err(e),
             None => ()
@@ -219,7 +215,7 @@ impl<
         // Compile with the technique
         let (program, mut params, inst_mesh, state) =
             self.technique.compile(kernel, view_info);
-        self.technique.fix_params(material, &view_info, &mut params);
+        self.technique.fix_params(material, view_info, &mut params);
         let mut temp_mesh = gfx::Mesh::new(orig_mesh.num_vertices);
         let mesh = match inst_mesh {
             Some(m) => {
@@ -241,7 +237,10 @@ impl<
         // Remember and return
         self.memory.store(key, object.clone());
         match object {
-            Ok(o) => Ok(self.queue.objects.push(o)),
+            Ok(o) => {
+                self.queue.objects.push(o);
+                Ok(true)
+            },
             Err(e) => {
                 warn!("Phase {}: batch creation failed: {:?}", self.name, e);
                 Err(e)

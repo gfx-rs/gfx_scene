@@ -93,7 +93,7 @@ for Technique<R> {
         Some(mat.alpha < 1.0)
     }
 
-    fn compile<'a>(&'a self, kernel: bool, space: ViewInfo)
+    fn compile<'a>(&'a self, kernel: bool, space: &ViewInfo)
                    -> gfx_phase::TechResult<'a, R, Params<R>> {
         (   &self.program,
             Params {
@@ -190,7 +190,7 @@ impl<R: gfx::Resources> App<R> {
                 3.0 * angle.cos(), 0.0, 3.0 * angle.sin()
             ));
             let view_info = ViewInfo(self.proj_view.mul_m(&model));
-            self.phase.enqueue(&ent.mesh, &ent.slice, &ent.material, view_info).unwrap();
+            self.phase.enqueue(&ent.mesh, &ent.slice, &ent.material, &view_info).unwrap();
         }
         
         self.phase.flush(stream).unwrap();

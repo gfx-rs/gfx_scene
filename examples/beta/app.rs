@@ -88,7 +88,7 @@ for Technique<R> {
         Some(())
     }
 
-    fn compile<'a>(&'a self, _: (), _: ViewInfo)
+    fn compile<'a>(&'a self, _: (), _: &ViewInfo)
                    -> gfx_phase::TechResult<'a, R, Params<R>> {
         (   &self.program,
             Params {

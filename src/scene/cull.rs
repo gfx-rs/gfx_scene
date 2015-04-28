@@ -1,25 +1,23 @@
-use std::fmt::Debug;
 use std::marker::PhantomData;
 use cgmath;
 use gfx;
 use gfx_phase;
 
 
-/// Abstract entity.
-pub trait InputEntity<R: gfx::Resources, M: gfx_phase::Material> {
-    /// Obtain an associated material.
-    fn get_material(&self) -> &M;
-    /// Obtain an associated mesh.
-    fn get_mesh(&self) -> (&gfx::Mesh<R>, &gfx::Slice<R>);
-}
-
-impl<R: gfx::Resources, M: gfx_phase::Material, W: ::World, B> InputEntity<R, M> for ::Entity<R, M, W, B> {
-    fn get_material(&self) -> &M {
-        &self.material
-    }
-    fn get_mesh(&self) -> (&gfx::Mesh<R>, &gfx::Slice<R>) {
-        (&self.mesh, &self.slice)
-    }
+struct CullEntity<'a, V, R: 'a + gfx::Resources, M: 'a> where
+    R::Buffer: 'a,
+    R::ArrayBuffer: 'a,
+    R::Shader: 'a,
+    R::Program: 'a,
+    R::FrameBuffer: 'a,
+    R::Surface: 'a,
+    R::Texture: 'a,
+    R::Sampler: 'a,
+{
+    view_info: V,
+    mesh: &'a gfx::Mesh<R>,
+    slice: &'a gfx::Slice<R>,
+    material: &'a M,
 }
 
 /// Generic bound culler.
@@ -47,77 +45,104 @@ impl<S: cgmath::BaseFloat, B: cgmath::Bound<S>> Culler<S, B> for Frustum<S, B> {
     }
 }
 
-/// An extension trait for a Phase that supports frustum culling.
-pub trait CullPhase<
-    R: gfx::Resources,
-    M: gfx_phase::Material,
-    E: InputEntity<R, M>,
-    W: ::World,
-    V, //ViewInfo, necessary to be constrained
-> {
-    /// Enqueue a series of entities given by an iterator.
-    /// Do frustum culling and `ViewInfo` construction on the fly.
-    fn enqueue_all<'a,
-        I: Iterator<Item = &'a E>,
-        P: cgmath::Projection<W::Scalar>,
-    >(  &mut self, entities: I, world: &W, camera: &::Camera<P, W::NodePtr>)
-        -> Result<::FailCount, gfx::batch::Error>;
+/// Culled scene - stores the culler as well as the current resulting
+/// list of entity components (meshes, materials, etc)
+pub struct CullScene<'a, C, V, R: 'a + gfx::Resources, M: 'a> {
+    culler: C,
+    entities: Vec<CullEntity<'a, V, R, M>>,
 }
 
-impl<
-    R: gfx::Resources,
-    M: gfx_phase::Material,
-    W: ::World,
-    B: cgmath::Bound<W::Scalar> + Debug,
-    V: ::ViewInfo<W::Scalar, W::Transform>,
-    H: gfx_phase::AbstractPhase<R, M, V> + ?Sized,
-> CullPhase<R, M, ::Entity<R, M, W, B>, W, V> for H {
-    fn enqueue_all<'a,
-        I: Iterator<Item = &'a ::Entity<R, M, W, B>>,
-        P: cgmath::Projection<W::Scalar>,
-    >(  &mut self, entities: I, world: &W, camera: &::Camera<P, W::NodePtr>)
-        -> Result<::FailCount, gfx::batch::Error>
-    where
-        R: 'a,
-        R::Buffer: 'a,
-        R::ArrayBuffer: 'a,
-        R::Shader: 'a,
-        R::Program: 'a,
-        R::FrameBuffer: 'a,
-        R::Surface: 'a,
-        R::Texture: 'a,
-        R::Sampler: 'a,
-        M: 'a,
-        W: 'a,
+impl<'a, C, V: gfx_phase::ToDepth, R: gfx::Resources, M> CullScene<'a, C, V, R, M> where
+    R::Buffer: 'static,
+    R::ArrayBuffer: 'static,
+    R::Shader: 'static,
+    R::Program: 'static,
+    R::FrameBuffer: 'static,
+    R::Surface: 'static,
+    R::Texture: 'static,
+    R::Sampler: 'static,
+{
+    /// Transform into an empty state, dropping the lifetime.
+    pub fn into_reset(mut self) -> CullScene<'static, C, V, R, M> {
+        use std::mem::transmute;
+        self.entities.clear();
+        // technically safe, since the vec is empty
+        CullScene {
+            culler: self.culler,
+            entities: unsafe { transmute(self.entities) },
+        }
+    }
+
+    /// Draw using an abstract phase.
+    pub fn draw_with<H, S>(&self, phase: &mut H, stream: &mut S)
+                     -> Result<::FailCount, ::Error> where
+        H: gfx_phase::AbstractPhase<R, M, V>,
+        S: gfx::Stream<R>,
+    {
+        let mut fail = 0;
+        // enqueue entities
+        for e in self.entities.iter() {
+            match phase.enqueue(e.mesh, e.slice, e.material, &e.view_info) {
+                Ok(true) => (),
+                Ok(false) => fail += 1,
+                Err(e) => return Err(::Error::Batch(e)),
+            }
+        }
+        // flush into the renderer
+        match phase.flush(stream) {
+            Ok(()) => Ok(fail),
+            Err(e) => Err(::Error::Flush(e)),
+        }
+    }
+}
+
+impl<C, V, R: gfx::Resources, M> CullScene<'static, C, V, R, M> {
+    /// Transform into a full state by culling the given entities.
+    pub fn into_cull<'a, B, W, I, P>(self, entities: I, world: &W,
+                     camera: &::Camera<P, W::NodePtr>)
+                     -> CullScene<'a, C, V, R, M> where
+        R::Buffer: 'static,
+        R::ArrayBuffer: 'static,
+        R::Shader: 'static,
+        R::Program: 'static,
+        R::FrameBuffer: 'static,
+        R::Surface: 'static,
+        R::Texture: 'static,
+        R::Sampler: 'static,
+        W: ::World + 'a,
         W::Transform: 'a,
         W::NodePtr: 'a,
         W::SkeletonPtr: 'a,
-        B: 'a,
+        V: ::ViewInfo<W::Scalar, W::Transform>,
+        B: cgmath::Bound<W::Scalar> + 'a,
+        C: Culler<W::Scalar, B>,
+        I: Iterator<Item = &'a ::Entity<R, M, W, B>>,
+        P: cgmath::Projection<W::Scalar>,
     {
         use cgmath::{Matrix, ToMatrix4, Transform};
         let cam_inverse = world.get_transform(&camera.node)
                                .invert().unwrap();
         let projection = camera.projection.to_matrix4()
                                .mul_m(&cam_inverse.to_matrix4());
-        let mut culler = Frustum(PhantomData); //TODO
-        culler.init();
-        let mut num_fail = 0;
+        let mut out = CullScene {
+            culler: self.culler,
+            entities: self.entities,
+        };
+        debug_assert!(out.entities.is_empty());
+        out.culler.init();
         for entity in entities {
-            if !self.test(&entity.get_mesh().0, entity.get_material()) {
-                continue
-            }
             let model = world.get_transform(&entity.node);
             let view = cam_inverse.concat(&model);
             let mvp = projection.mul_m(&model.to_matrix4());
-            if culler.cull(&entity.bound, &mvp) == cgmath::Relation::Out {
-                continue
-            }
-            let view_info = ::ViewInfo::new(mvp, view, model.clone());
-            let (mesh, slice) = entity.get_mesh();
-            if self.enqueue(mesh, slice, entity.get_material(), view_info).is_err() {
-                num_fail += 1;
+            if out.culler.cull(&entity.bound, &mvp) != cgmath::Relation::Out {
+                out.entities.push(CullEntity {
+                    view_info: ::ViewInfo::new(mvp, view, model),
+                    mesh: &entity.mesh,
+                    slice: &entity.slice,
+                    material: &entity.material,
+                });
             }
         }
-        Ok(num_fail)
+        out
     }
 }
