@@ -149,7 +149,16 @@ pub struct App<R: gfx::Resources> {
     camera: gfx_scene::Camera<cgmath::Ortho<f32>, <World as gfx_scene::World>::NodePtr>,
 }
 
-impl<R: gfx::Resources> App<R> {
+impl<R: gfx::Resources + 'static> App<R> where
+    R::Buffer: 'static,
+    R::ArrayBuffer: 'static,
+    R::Shader: 'static,
+    R::Program: 'static,
+    R::FrameBuffer: 'static,
+    R::Surface: 'static,
+    R::Texture: 'static,
+    R::Sampler: 'static,
+{
     pub fn new<F: gfx::Factory<R>>(factory: &mut F) -> App<R> {
         let vertex_data = [
             Vertex::new(0, 1),

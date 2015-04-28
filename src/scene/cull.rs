@@ -38,6 +38,13 @@ impl<S, B: cgmath::Bound<S>> Culler<S, B> for () {
 /// Frustum culler.
 pub struct Frustum<S, B>(PhantomData<(S, B)>);
 
+impl<S, B> Frustum<S, B> {
+    /// Create a new frustum culler.
+    pub fn new() -> Frustum<S, B> {
+        Frustum(PhantomData)
+    }
+}
+
 impl<S: cgmath::BaseFloat, B: cgmath::Bound<S>> Culler<S, B> for Frustum<S, B> {
     fn init(&mut self) {}
     fn cull(&mut self, bound: &B, mvp: &cgmath::Matrix4<S>) -> cgmath::Relation {
@@ -96,19 +103,28 @@ impl<'a, C, V: gfx_phase::ToDepth, R: gfx::Resources, M> CullScene<'a, C, V, R, 
     }
 }
 
-impl<C, V, R: gfx::Resources, M> CullScene<'static, C, V, R, M> {
+impl<C, V, R: gfx::Resources, M> CullScene<'static, C, V, R, M> where
+    R::Buffer: 'static,
+    R::ArrayBuffer: 'static,
+    R::Shader: 'static,
+    R::Program: 'static,
+    R::FrameBuffer: 'static,
+    R::Surface: 'static,
+    R::Texture: 'static,
+    R::Sampler: 'static,
+{
+    /// Create a new `CullScene`
+    pub fn new(culler: C) -> CullScene<'static, C, V, R, M> {
+        CullScene {
+            culler: culler,
+            entities: Vec::new(),
+        }
+    }
+
     /// Transform into a full state by culling the given entities.
-    pub fn into_cull<'a, B, W, I, P>(self, entities: I, world: &W,
-                     camera: &::Camera<P, W::NodePtr>)
-                     -> CullScene<'a, C, V, R, M> where
-        R::Buffer: 'static,
-        R::ArrayBuffer: 'static,
-        R::Shader: 'static,
-        R::Program: 'static,
-        R::FrameBuffer: 'static,
-        R::Surface: 'static,
-        R::Texture: 'static,
-        R::Sampler: 'static,
+    pub fn into_culled<'a, B, W, I, P>(self, entities: I, world: &W,
+                       camera: &::Camera<P, W::NodePtr>)
+                       -> CullScene<'a, C, V, R, M> where
         W: ::World + 'a,
         W::Transform: 'a,
         W::NodePtr: 'a,
@@ -144,5 +160,29 @@ impl<C, V, R: gfx::Resources, M> CullScene<'static, C, V, R, M> {
             }
         }
         out
+    }
+}
+
+impl<'a, C, V: gfx_phase::ToDepth, R: gfx::Resources, M> ::AbstractScene<R> for
+CullScene<'a, C, V, R, M> where
+    R::Buffer: 'static,
+    R::ArrayBuffer: 'static,
+    R::Shader: 'static,
+    R::Program: 'static,
+    R::FrameBuffer: 'static,
+    R::Surface: 'static,
+    R::Texture: 'static,
+    R::Sampler: 'static,
+{
+    type ViewInfo = V;
+    type Material = M;
+    type Camera = ();
+
+    fn draw<H, S>(&self, phase: &mut H, _: &(), stream: &mut S)
+            -> Result<::FailCount, ::Error> where
+        H: gfx_phase::AbstractPhase<R, Self::Material, Self::ViewInfo>,
+        S: gfx::Stream<R>
+    {
+        self.draw_with(phase, stream)
     }
 }

@@ -132,13 +132,22 @@ impl<R: gfx::Resources, M, W: World, B, P, V> Scene<R, M, W, B, P, V> {
 }
 
 impl<
-    R: gfx::Resources,
-    M: gfx_phase::Material,
+    R: gfx::Resources + 'static,
+    M: gfx_phase::Material + 'static,
     W: World,
     B: cgmath::Bound<W::Scalar> + Debug,
     P: cgmath::Projection<W::Scalar>,
     V: ViewInfo<W::Scalar, W::Transform>,
-> AbstractScene<R> for Scene<R, M, W, B, P, V> {
+> AbstractScene<R> for Scene<R, M, W, B, P, V> where
+    R::Buffer: 'static,
+    R::ArrayBuffer: 'static,
+    R::Shader: 'static,
+    R::Program: 'static,
+    R::FrameBuffer: 'static,
+    R::Surface: 'static,
+    R::Texture: 'static,
+    R::Sampler: 'static,
+{
     type ViewInfo = V;
     type Material = M;
     type Camera = Camera<P, W::NodePtr>;
@@ -148,18 +157,9 @@ impl<
         H: gfx_phase::AbstractPhase<R, M, V>,
         S: gfx::Stream<R>,
     {
-        // enqueue entities
-        //let num_fail = match phase.enqueue_all(self.entities.iter(), &self.world, camera) {
-        //    Ok(num) => num,
-        //    Err(e) => return Err(Error::Batch(e)),
-        //};
-        //TODO!
-        let num_fail = 0;
-        // flush into the renderer
-        match phase.flush(stream) {
-            Ok(()) => Ok(num_fail),
-            Err(e) => Err(Error::Flush(e)),
-        }
+        CullScene::new(Frustum::new())
+                  .into_culled(self.entities.iter(), &self.world, camera)
+                  .draw_with(phase, stream)
     }
 }
 
