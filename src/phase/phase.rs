@@ -2,7 +2,6 @@
 
 use std::cmp::Ordering;
 use std::collections::HashMap;
-use std::marker::PhantomData;
 use draw_queue;
 use gfx;
 use mem;
@@ -11,11 +10,12 @@ use mem;
 pub type FlushError = gfx::DrawError<gfx::batch::OutOfBounds>;
 
 /// An abstract rendering phase.
-pub trait AbstractPhase<R: gfx::Resources, E, V: ::ToDepth> {
+pub trait AbstractPhase<R: gfx::Resources, M, V: ::ToDepth> {
     /// Check if it makes sense to draw this entity.
-    fn test(&self, &E) -> bool;
+    fn test(&self, &gfx::Mesh<R>, &M) -> bool;
     /// Add an entity to the queue.
-    fn enqueue(&mut self, &E, V) -> Result<(), gfx::batch::Error>;
+    fn enqueue(&mut self, &gfx::Mesh<R>, &gfx::Slice<R>, &M, V)
+               -> Result<(), gfx::batch::Error>;
     /// Flush the queue into a given stream.
     fn flush<S: gfx::Stream<R>>(&mut self, stream: &mut S)
              -> Result<(), FlushError>;
@@ -106,7 +106,6 @@ pub struct Phase<
     M: ::Material,
     V: ::ToDepth,
     T: ::Technique<R, M, V>,
-    E,  // Entity
     Y,  // Memory
 >{
     /// Phase name.
@@ -121,8 +120,6 @@ pub struct Phase<
     queue: draw_queue::Queue<Object<V::Depth, T::Kernel, T::Params>>,
     /// Batch context.
     context: gfx::batch::Context<R>,
-    /// Dummy Entity use.
-    dummy: PhantomData<E>,
 }
 
 /// Memory typedef using a `HashMap`.
@@ -141,18 +138,16 @@ pub type CachedPhase<
     M: ::Material,
     V: ::ToDepth,
     T: ::Technique<R, M, V>,
-    E,
-> = Phase<R, M, V, T, E, CacheMap<R, M, V, T>>;
+> = Phase<R, M, V, T, CacheMap<R, M, V, T>>;
 
 impl<
     R: gfx::Resources,
     M: ::Material,
     V: ::ToDepth,
     T: ::Technique<R, M, V>,
-    E,
-> Phase<R, M, V, T, E, ()> {
+> Phase<R, M, V, T, ()> {
     /// Create a new phase from a given technique.
-    pub fn new(name: &str, tech: T) -> Phase<R, M, V, T, E, ()> {
+    pub fn new(name: &str, tech: T) -> Phase<R, M, V, T, ()> {
         Phase {
             name: name.to_string(),
             technique: tech,
@@ -160,13 +155,12 @@ impl<
             memory: (),
             queue: draw_queue::Queue::new(),
             context: gfx::batch::Context::new(),
-            dummy: PhantomData,
         }
     }
 
     /// Enable sorting of rendered objects.
     pub fn with_sort(self, fun: OrderFun<V::Depth, T::Kernel, T::Params>)
-                     -> Phase<R, M, V, T, E, ()> {
+                     -> Phase<R, M, V, T, ()> {
         Phase {
             sort: Some(fun),
             .. self
@@ -174,7 +168,7 @@ impl<
     }
 
     /// Enable caching of created render objects.
-    pub fn with_cache(self) -> CachedPhase<R, M, V, T, E> {
+    pub fn with_cache(self) -> CachedPhase<R, M, V, T> {
         Phase {
             name: self.name,
             technique: self.technique,
@@ -182,7 +176,6 @@ impl<
             memory: HashMap::new(),
             queue: self.queue,
             context: self.context,
-            dummy: self.dummy,
         }
     }
 }
@@ -191,26 +184,23 @@ impl<
     R: gfx::Resources,
     M: ::Material,
     V: ::ToDepth + Copy,
-    E: ::Entity<R, M>,
     T: ::Technique<R, M, V>,
     Y: mem::Memory<(T::Kernel, gfx::Mesh<R>),
         Object<V::Depth, T::Kernel, T::Params>
     >,
->AbstractPhase<R, E, V> for Phase<R, M, V, T, E, Y> where
+>AbstractPhase<R, M, V> for Phase<R, M, V, T, Y> where
     T::Params: Clone,
     <T::Params as gfx::shade::ShaderParam>::Link: Copy,
 {
-    fn test(&self, entity: &E) -> bool {
-        self.technique.test(entity.get_mesh().0, entity.get_material())
-                      .is_some()
+    fn test(&self, mesh: &gfx::Mesh<R>, material: &M) -> bool {
+        self.technique.test(mesh, material).is_some()
     }
 
-    fn enqueue(&mut self, entity: &E, view_info: V)
+    fn enqueue(&mut self, orig_mesh: &gfx::Mesh<R>, slice: &gfx::Slice<R>,
+               material: &M, view_info: V)
                -> Result<(), gfx::batch::Error> {
-        let kernel = self.technique.test(
-            entity.get_mesh().0, entity.get_material())
-            .unwrap(); //TODO?
-        let (orig_mesh, slice) = entity.get_mesh();
+        let kernel = self.technique.test(orig_mesh, material)
+                                   .unwrap(); //TODO?
         let depth = view_info.to_depth();
         let key = (kernel, orig_mesh.clone()); //TODO: avoid clone() here
         // Try recalling from memory
@@ -219,8 +209,7 @@ impl<
                 o.slice = slice.clone();
                 o.depth = depth;
                 assert_eq!(o.kernel, kernel);
-                self.technique.fix_params(entity.get_material(),
-                                          &view_info, &mut o.params);
+                self.technique.fix_params(material, &view_info, &mut o.params);
                 self.queue.objects.push(o);
                 return Ok(())
             },
@@ -230,8 +219,7 @@ impl<
         // Compile with the technique
         let (program, mut params, inst_mesh, state) =
             self.technique.compile(kernel, view_info);
-        self.technique.fix_params(entity.get_material(),
-                                  &view_info, &mut params);
+        self.technique.fix_params(material, &view_info, &mut params);
         let mut temp_mesh = gfx::Mesh::new(orig_mesh.num_vertices);
         let mesh = match inst_mesh {
             Some(m) => {

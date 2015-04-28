@@ -54,11 +54,3 @@ pub trait Technique<R: gfx::Resources, M: Material, V: ToDepth> {
     /// Fix the shader parameters, using an updated material and view info.
     fn fix_params(&self, &M, &V, &mut Self::Params);
 }
-
-/// Abstract entity.
-pub trait Entity<R: gfx::Resources, M: Material> {
-    /// Obtain an associated material.
-    fn get_material(&self) -> &M;
-    /// Obtain an associated mesh.
-    fn get_mesh(&self) -> (&gfx::Mesh<R>, &gfx::Slice<R>);
-}

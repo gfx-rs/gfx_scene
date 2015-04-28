@@ -144,9 +144,7 @@ impl gfx_scene::World for World {
 //----------------------------------------
 
 pub struct App<R: gfx::Resources> {
-    phase: gfx_phase::Phase<R, Material, ViewInfo, Technique<R>,
-                            gfx_scene::Entity<R, Material, World, cgmath::Aabb3<f32>>,
-                            ()>,
+    phase: gfx_phase::Phase<R, Material, ViewInfo, Technique<R>, ()>,
     scene: gfx_scene::Scene<R, Material, World, cgmath::Aabb3<f32>, cgmath::Ortho<f32>, ViewInfo>,
     camera: gfx_scene::Camera<cgmath::Ortho<f32>, <World as gfx_scene::World>::NodePtr>,
 }

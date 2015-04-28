@@ -118,15 +118,10 @@ struct Entity<R: gfx::Resources> {
     material: Material,
 }
 
-impl<R: gfx::Resources> gfx_phase::Entity<R, Material> for Entity<R> {
-    fn get_material(&self) -> &Material { &self.material }
-    fn get_mesh(&self) -> (&gfx::Mesh<R>, &gfx::Slice<R>) { (&self.mesh, &self.slice) }
-}
-
 //----------------------------------------
 
 pub struct App<R: gfx::Resources> {
-    phase: gfx_phase::CachedPhase<R, Material, ViewInfo, Technique<R>, Entity<R>>,
+    phase: gfx_phase::CachedPhase<R, Material, ViewInfo, Technique<R>>,
     entities: Vec<Entity<R>>,
     proj_view: Matrix4<f32>,
 }
@@ -195,7 +190,7 @@ impl<R: gfx::Resources> App<R> {
                 3.0 * angle.cos(), 0.0, 3.0 * angle.sin()
             ));
             let view_info = ViewInfo(self.proj_view.mul_m(&model));
-            self.phase.enqueue(ent, view_info).unwrap();
+            self.phase.enqueue(&ent.mesh, &ent.slice, &ent.material, view_info).unwrap();
         }
         
         self.phase.flush(stream).unwrap();
