@@ -62,6 +62,7 @@ impl<'a, 'c, R, M, W, B, V, I, C> Iterator for CullIterator<'a, 'c, R, M, W, B, 
     fn next(&mut self) -> Option<CullEntity<'a, R, M, V>> {
         use cgmath::{Matrix, ToMatrix4, Transform};
         while let Some(ent) = self.entities.next() {
+            if !ent.visible { continue }
             let model = self.world.get_transform(&ent.node);
             let view = self.cam_inverse.concat(&model);
             let mvp = self.projection.mul_m(&model.to_matrix4());

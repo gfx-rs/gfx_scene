@@ -61,6 +61,8 @@ pub trait World {
 pub struct Entity<R: gfx::Resources, M, W: World, B> {
     /// Name of the entity.
     pub name: String,
+    /// Visibility flag.
+    pub visible: bool,
     /// Assotiated material of the entity.
     pub material: M,
     /// Mesh.

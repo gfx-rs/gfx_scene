@@ -178,6 +178,7 @@ impl<R: gfx::Resources + 'static> App<R> where
             let offset = vec2(4.0 * angle.cos(), 4.0 * angle.sin());
             gfx_scene::Entity {
                 name: format!("entity-{}", i),
+                visible: true,
                 material: Material,
                 mesh: mesh.clone(),
                 slice: slice.clone(),
