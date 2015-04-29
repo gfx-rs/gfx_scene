@@ -136,45 +136,6 @@ impl<S: cgmath::BaseFloat, B: cgmath::Bound<S>> Culler<S, B> for Frustum<S, B> {
         bound.relate_clip_space(mvp)
     }
 }
-/*
-impl<'a, R, M, V, I> ::AbstractScene<R> for I where
-    R: gfx::Resources,
-    R::Buffer: 'a,
-    R::ArrayBuffer: 'a,
-    R::Shader: 'a,
-    R::Program: 'a,
-    R::FrameBuffer: 'a,
-    R::Surface: 'a,
-    R::Texture: 'a,
-    R::Sampler: 'a,
-    V, gfx_phase::ToDepth,
-    I: Iterator<Item = CullEntity<'a, V, R, M>>,
-{
-    type ViewInfo = V;
-    type Material = M;
-    type Camera = ();
-
-    fn draw<H, S>(&self, phase: &mut H, _: &(), stream: &mut S)
-            -> Result<::FailCount, ::Error> where
-        H: gfx_phase::AbstractPhase<R, Self::Material, Self::ViewInfo>,
-        S: gfx::Stream<R>
-    {
-        let mut fail = 0;
-        // enqueue entities
-        for e in self {
-            match phase.enqueue(e.mesh, e.slice, e.material, &e.view_info) {
-                Ok(true) => (),
-                Ok(false) => fail += 1,
-                Err(e) => return Err(::Error::Batch(e)),
-            }
-        }
-        // flush into the renderer
-        match phase.flush(stream) {
-            Ok(()) => Ok(fail),
-            Err(e) => Err(::Error::Flush(e)),
-        }
-    }
-}*/
 
 /// Draw culled entities, specified by an iterator.
 pub fn draw<'a, R, M, V, I, H, S>(entities: I, phase: &mut H, stream: &mut S)
