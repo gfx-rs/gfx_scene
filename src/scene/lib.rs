@@ -11,8 +11,8 @@ use std::marker::PhantomData;
 
 mod cull;
 
-pub use self::cull::{Culler, CullPhase, Frustum};
-
+pub use self::cull::{Culler, CullEntity, CullIterator, Frustum};
+pub use self::cull::draw as draw_culled;
 
 /// Scene drawing error.
 #[derive(Debug)]
@@ -30,15 +30,15 @@ pub type FailCount = usize;
 pub trait AbstractScene<R: gfx::Resources> {
     /// A type of the view information.
     type ViewInfo;
-    /// A type of the entity.
-    type Entity;
+    /// A type of the material.
+    type Material;
     /// A type of the camera.
     type Camera;
 
     /// Draw the contents of the scene with a specific phase into a stream.
     fn draw<H, S>(&self, &mut H, &Self::Camera, &mut S)
             -> Result<FailCount, Error> where
-        H: gfx_phase::AbstractPhase<R, Self::Entity, Self::ViewInfo>,
+        H: gfx_phase::AbstractPhase<R, Self::Material, Self::ViewInfo>,
         S: gfx::Stream<R>;
 }
 
@@ -73,15 +73,6 @@ pub struct Entity<R: gfx::Resources, M, W: World, B> {
     pub skeleton: Option<W::SkeletonPtr>,
     /// Associated spatial bound of the entity.
     pub bound: B,
-}
-
-impl<R: gfx::Resources, M: gfx_phase::Material, W: World, B> gfx_phase::Entity<R, M> for Entity<R, M, W, B> {
-    fn get_material(&self) -> &M {
-        &self.material
-    }
-    fn get_mesh(&self) -> (&gfx::Mesh<R>, &gfx::Slice<R>) {
-        (&self.mesh, &self.slice)
-    }
 }
 
 /// A simple camera with generic projection and spatial relation.
@@ -149,24 +140,17 @@ impl<
     V: ViewInfo<W::Scalar, W::Transform>,
 > AbstractScene<R> for Scene<R, M, W, B, P, V> {
     type ViewInfo = V;
-    type Entity = Entity<R, M, W, B>;
+    type Material = M;
     type Camera = Camera<P, W::NodePtr>;
 
     fn draw<H, S>(&self, phase: &mut H, camera: &Camera<P, W::NodePtr>,
             stream: &mut S) -> Result<FailCount, Error> where
-        H: gfx_phase::AbstractPhase<R, Entity<R, M, W, B>, V>,
+        H: gfx_phase::AbstractPhase<R, M, V>,
         S: gfx::Stream<R>,
     {
-        // enqueue entities
-        let num_fail = match phase.enqueue_all(self.entities.iter(), &self.world, camera) {
-            Ok(num) => num,
-            Err(e) => return Err(Error::Batch(e)),
-        };
-        // flush into the renderer
-        match phase.flush(stream) {
-            Ok(()) => Ok(num_fail),
-            Err(e) => Err(Error::Flush(e)),
-        }
+        let mut culler = Frustum::new();
+        let iter = culler.process(self.entities.iter(), &self.world, camera);
+        draw_culled(iter, phase, stream)
     }
 }
 

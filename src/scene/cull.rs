@@ -1,10 +1,82 @@
-use std::fmt::Debug;
 use std::marker::PhantomData;
 use cgmath;
 use gfx;
 use gfx_phase;
-use super::{FailCount, World, Camera, Entity, ViewInfo};
 
+
+/// Culled result on an entity.
+#[derive(Clone)]
+pub struct CullEntity<'a, R: 'a + gfx::Resources, M: 'a, V> where
+    R::Buffer: 'a,
+    R::ArrayBuffer: 'a,
+    R::Shader: 'a,
+    R::Program: 'a,
+    R::FrameBuffer: 'a,
+    R::Surface: 'a,
+    R::Texture: 'a,
+    R::Sampler: 'a,
+{
+    mesh: &'a gfx::Mesh<R>,
+    slice: &'a gfx::Slice<R>,
+    material: &'a M,
+    view_info: V,
+}
+
+/// Culling iterator.
+pub struct CullIterator<'a, 'b, R, M, W, B, V, I, C> where
+    R: gfx::Resources,
+    W: ::World + 'a,
+    B: cgmath::Bound<W::Scalar>,
+    I: Iterator<Item = &'a ::Entity<R, M, W, B>>,
+    C: Culler<W::Scalar, B> + 'b,
+{
+    entities: I,
+    world: &'a W,
+    culler: &'b mut C,
+    cam_inverse: W::Transform,
+    projection: cgmath::Matrix4<W::Scalar>,
+    dummy: PhantomData<V>,
+}
+
+impl<'a, 'c, R, M, W, B, V, I, C> Iterator for CullIterator<'a, 'c, R, M, W, B, V, I, C> where
+    R: gfx::Resources,
+    R::Buffer: 'a,
+    R::ArrayBuffer: 'a,
+    R::Shader: 'a,
+    R::Program: 'a,
+    R::FrameBuffer: 'a,
+    R::Surface: 'a,
+    R::Texture: 'a,
+    R::Sampler: 'a,
+    W: ::World + 'a,
+    W::Transform: 'a,
+    W::NodePtr: 'a,
+    W::SkeletonPtr: 'a,
+    B: cgmath::Bound<W::Scalar>,
+    V: ::ViewInfo<W::Scalar, W::Transform>,
+    I: Iterator<Item = &'a ::Entity<R, M, W, B>>,
+    C: Culler<W::Scalar, B> + 'c,
+{
+    type Item = CullEntity<'a, R, M, V>;
+
+    fn next(&mut self) -> Option<CullEntity<'a, R, M, V>> {
+        use cgmath::{Matrix, ToMatrix4, Transform};
+        while let Some(ent) = self.entities.next() {
+            let model = self.world.get_transform(&ent.node);
+            let view = self.cam_inverse.concat(&model);
+            let mvp = self.projection.mul_m(&model.to_matrix4());
+            if self.culler.cull(&ent.bound, &mvp) != cgmath::Relation::Out {
+                return Some(CullEntity {
+                    mesh: &ent.mesh,
+                    slice: &ent.slice,
+                    material: &ent.material,
+                    view_info: ::ViewInfo::new(mvp, view, model),
+                })
+            }
+        }
+        None
+    }
+}
 
 /// Generic bound culler.
 pub trait Culler<S, B: cgmath::Bound<S>> {
@@ -12,6 +84,33 @@ pub trait Culler<S, B: cgmath::Bound<S>> {
     fn init(&mut self);
     /// Cull a bound with a given transformation matrix.
     fn cull(&mut self, &B, &cgmath::Matrix4<S>) -> cgmath::Relation;
+    /// Process the whole scene, calling a function for every success.
+    fn process<'a, 'c, R, M, T, W, P, V, I>(&'c mut self, entities: I, world: &'a W,
+               camera: &::Camera<P, W::NodePtr>)
+               -> CullIterator<'a, 'c, R, M, W, B, V, I, Self> where
+        R: gfx::Resources,
+        S: cgmath::BaseFloat,
+        T: cgmath::Transform3<S> + Clone,   // shouldn't be needed
+        W: ::World<Scalar = S, Transform = T> + 'a,
+        P: cgmath::Projection<S>,
+        I: Iterator<Item = &'a ::Entity<R, M, W, B>>,
+        Self: Sized,    // magic!
+    {
+        use cgmath::{Matrix, ToMatrix4, Transform};
+        let cam_inverse = world.get_transform(&camera.node)
+                               .invert().unwrap();
+        let projection = camera.projection.to_matrix4()
+                               .mul_m(&cam_inverse.to_matrix4());
+        self.init();
+        CullIterator {
+            entities: entities,
+            world: world,
+            culler: self,
+            cam_inverse: cam_inverse,
+            projection: projection,
+            dummy: PhantomData,
+        }
+    }
 }
 
 impl<S, B: cgmath::Bound<S>> Culler<S, B> for () {
@@ -24,6 +123,13 @@ impl<S, B: cgmath::Bound<S>> Culler<S, B> for () {
 /// Frustum culler.
 pub struct Frustum<S, B>(PhantomData<(S, B)>);
 
+impl<S, B> Frustum<S, B> {
+    /// Create a new frustum culler.
+    pub fn new() -> Frustum<S, B> {
+        Frustum(PhantomData)
+    }
+}
+
 impl<S: cgmath::BaseFloat, B: cgmath::Bound<S>> Culler<S, B> for Frustum<S, B> {
     fn init(&mut self) {}
     fn cull(&mut self, bound: &B, mvp: &cgmath::Matrix4<S>) -> cgmath::Relation {
@@ -31,76 +137,36 @@ impl<S: cgmath::BaseFloat, B: cgmath::Bound<S>> Culler<S, B> for Frustum<S, B> {
     }
 }
 
-/// An extension trait for a Phase that supports frustum culling.
-pub trait CullPhase<
-    R: gfx::Resources,
-    M: gfx_phase::Material,
-    E: gfx_phase::Entity<R, M>,
-    W: World,
-    V, //ViewInfo, necessary to be constrained
-> {
-    /// Enqueue a series of entities given by an iterator.
-    /// Do frustum culling and `ViewInfo` construction on the fly.
-    fn enqueue_all<'a,
-        I: Iterator<Item = &'a E>,
-        P: cgmath::Projection<W::Scalar>,
-    >(  &mut self, entities: I, world: &W, camera: &Camera<P, W::NodePtr>)
-        -> Result<FailCount, gfx::batch::Error>;
-}
-
-impl<
-    R: gfx::Resources,
-    M: gfx_phase::Material,
-    W: World,
-    B: cgmath::Bound<W::Scalar> + Debug,
-    V: ViewInfo<W::Scalar, W::Transform>,
-    H: gfx_phase::AbstractPhase<R, Entity<R, M, W, B>, V> + ?Sized,
-> CullPhase<R, M, Entity<R, M, W, B>, W, V> for H {
-    fn enqueue_all<'a,
-        I: Iterator<Item = &'a Entity<R, M, W, B>>,
-        P: cgmath::Projection<W::Scalar>,
-    >(  &mut self, entities: I, world: &W, camera: &Camera<P, W::NodePtr>)
-        -> Result<FailCount, gfx::batch::Error>
-    where
-        R: 'a,
-        R::Buffer: 'a,
-        R::ArrayBuffer: 'a,
-        R::Shader: 'a,
-        R::Program: 'a,
-        R::FrameBuffer: 'a,
-        R::Surface: 'a,
-        R::Texture: 'a,
-        R::Sampler: 'a,
-        M: 'a,
-        W: 'a,
-        W::Transform: 'a,
-        W::NodePtr: 'a,
-        W::SkeletonPtr: 'a,
-        B: 'a,
-    {
-        use cgmath::{Matrix, ToMatrix4, Transform};
-        let cam_inverse = world.get_transform(&camera.node)
-                               .invert().unwrap();
-        let projection = camera.projection.to_matrix4()
-                               .mul_m(&cam_inverse.to_matrix4());
-        let mut culler = Frustum(PhantomData); //TODO
-        culler.init();
-        let mut num_fail = 0;
-        for entity in entities {
-            if !self.test(entity) {
-                continue
-            }
-            let model = world.get_transform(&entity.node);
-            let view = cam_inverse.concat(&model);
-            let mvp = projection.mul_m(&model.to_matrix4());
-            if culler.cull(&entity.bound, &mvp) == cgmath::Relation::Out {
-                continue
-            }
-            let view_info = ViewInfo::new(mvp, view, model.clone());
-            if self.enqueue(entity, view_info).is_err() {
-                num_fail += 1;
-            }
+/// Draw culled entities, specified by an iterator.
+pub fn draw<'a, R, M, V, I, H, S>(entities: I, phase: &mut H, stream: &mut S)
+            -> Result<::FailCount, ::Error> where
+    R: gfx::Resources + 'a,
+    R::Buffer: 'a,
+    R::ArrayBuffer: 'a,
+    R::Shader: 'a,
+    R::Program: 'a,
+    R::FrameBuffer: 'a,
+    R::Surface: 'a,
+    R::Texture: 'a,
+    R::Sampler: 'a,
+    M: 'a,
+    V: gfx_phase::ToDepth,
+    I: Iterator<Item = CullEntity<'a, R, M, V>>,
+    H: gfx_phase::AbstractPhase<R, M, V>,
+    S: gfx::Stream<R>
+{
+    let mut fail = 0;
+    // enqueue entities
+    for e in entities {
+        match phase.enqueue(e.mesh, e.slice, e.material, &e.view_info) {
+            Ok(true) => (),
+            Ok(false) => fail += 1,
+            Err(e) => return Err(::Error::Batch(e)),
         }
-        Ok(num_fail)
+    }
+    // flush into the renderer
+    match phase.flush(stream) {
+        Ok(()) => Ok(fail),
+        Err(e) => Err(::Error::Flush(e)),
     }
 }

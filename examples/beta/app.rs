@@ -88,7 +88,7 @@ for Technique<R> {
         Some(())
     }
 
-    fn compile<'a>(&'a self, _: (), _: ViewInfo)
+    fn compile<'a>(&'a self, _: (), _: &ViewInfo)
                    -> gfx_phase::TechResult<'a, R, Params<R>> {
         (   &self.program,
             Params {
@@ -144,14 +144,21 @@ impl gfx_scene::World for World {
 //----------------------------------------
 
 pub struct App<R: gfx::Resources> {
-    phase: gfx_phase::Phase<R, Material, ViewInfo, Technique<R>,
-                            gfx_scene::Entity<R, Material, World, cgmath::Aabb3<f32>>,
-                            ()>,
+    phase: gfx_phase::Phase<R, Material, ViewInfo, Technique<R>, ()>,
     scene: gfx_scene::Scene<R, Material, World, cgmath::Aabb3<f32>, cgmath::Ortho<f32>, ViewInfo>,
     camera: gfx_scene::Camera<cgmath::Ortho<f32>, <World as gfx_scene::World>::NodePtr>,
 }
 
-impl<R: gfx::Resources> App<R> {
+impl<R: gfx::Resources + 'static> App<R> where
+    R::Buffer: 'static,
+    R::ArrayBuffer: 'static,
+    R::Shader: 'static,
+    R::Program: 'static,
+    R::FrameBuffer: 'static,
+    R::Surface: 'static,
+    R::Texture: 'static,
+    R::Sampler: 'static,
+{
     pub fn new<F: gfx::Factory<R>>(factory: &mut F) -> App<R> {
         let vertex_data = [
             Vertex::new(0, 1),

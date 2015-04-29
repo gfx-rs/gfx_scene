@@ -49,16 +49,8 @@ pub trait Technique<R: gfx::Resources, M: Material, V: ToDepth> {
     fn test(&self, &gfx::Mesh<R>, &M) -> Option<Self::Kernel>;
     /// Compile a given kernel by producing a program, parameter block,
     /// a draw state, and an optional instancing data.
-    fn compile<'a>(&'a self, Self::Kernel, V)
+    fn compile<'a>(&'a self, Self::Kernel, &V)
                    -> TechResult<'a, R, Self::Params>;
     /// Fix the shader parameters, using an updated material and view info.
     fn fix_params(&self, &M, &V, &mut Self::Params);
-}
-
-/// Abstract entity.
-pub trait Entity<R: gfx::Resources, M: Material> {
-    /// Obtain an associated material.
-    fn get_material(&self) -> &M;
-    /// Obtain an associated mesh.
-    fn get_mesh(&self) -> (&gfx::Mesh<R>, &gfx::Slice<R>);
 }
