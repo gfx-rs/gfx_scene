@@ -11,8 +11,8 @@ use std::marker::PhantomData;
 
 mod cull;
 
-pub use self::cull::{Culler, CullScene, Frustum};
-
+pub use self::cull::{Culler, CullEntity, CullIterator, Frustum};
+pub use self::cull::draw as draw_culled;
 
 /// Scene drawing error.
 #[derive(Debug)]
@@ -132,22 +132,13 @@ impl<R: gfx::Resources, M, W: World, B, P, V> Scene<R, M, W, B, P, V> {
 }
 
 impl<
-    R: gfx::Resources + 'static,
-    M: gfx_phase::Material + 'static,
+    R: gfx::Resources,
+    M: gfx_phase::Material,
     W: World,
     B: cgmath::Bound<W::Scalar> + Debug,
     P: cgmath::Projection<W::Scalar>,
     V: ViewInfo<W::Scalar, W::Transform>,
-> AbstractScene<R> for Scene<R, M, W, B, P, V> where
-    R::Buffer: 'static,
-    R::ArrayBuffer: 'static,
-    R::Shader: 'static,
-    R::Program: 'static,
-    R::FrameBuffer: 'static,
-    R::Surface: 'static,
-    R::Texture: 'static,
-    R::Sampler: 'static,
-{
+> AbstractScene<R> for Scene<R, M, W, B, P, V> {
     type ViewInfo = V;
     type Material = M;
     type Camera = Camera<P, W::NodePtr>;
@@ -157,9 +148,9 @@ impl<
         H: gfx_phase::AbstractPhase<R, M, V>,
         S: gfx::Stream<R>,
     {
-        CullScene::new(Frustum::new())
-                  .into_culled(self.entities.iter(), &self.world, camera)
-                  .draw_with(phase, stream)
+        let mut culler = Frustum::new();
+        let iter = culler.process(self.entities.iter(), &self.world, camera);
+        draw_culled(iter, phase, stream)
     }
 }
 
