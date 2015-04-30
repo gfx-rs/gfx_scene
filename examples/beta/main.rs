@@ -13,8 +13,13 @@ mod app;
 fn main() {
     use gfx::traits::IntoCanvas;
 
-    let mut canvas = gfx_window_glutin::init(glutin::Window::new().unwrap()).into_canvas();
-    canvas.output.window.set_title("Beta: gfx_scene example");
+    let window = glutin::WindowBuilder::new()
+        .with_title("Beta: gfx_scene example".to_string())
+        .with_vsync()
+        .with_gl(glutin::GlRequest::Specific(glutin::Api::OpenGl, (3, 2)))
+        .build().unwrap();
+    let mut canvas = gfx_window_glutin::init(window).into_canvas();
+
     let mut app = app::App::new(&mut canvas.factory);
 
     'main: loop {

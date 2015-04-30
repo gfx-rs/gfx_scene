@@ -12,8 +12,13 @@ mod app;
 fn main() {
     use gfx::traits::*;
 
-    let mut canvas = gfx_window_glutin::init(glutin::Window::new().unwrap()).into_canvas();
-    canvas.output.window.set_title("Alpha: gfx_phase example");
+    let window = glutin::WindowBuilder::new()
+        .with_title("Alpha: gfx_phase example".to_string())
+        .with_vsync()
+        .with_gl(glutin::GlRequest::Specific(glutin::Api::OpenGl, (3, 2)))
+        .build().unwrap();
+    let mut canvas = gfx_window_glutin::init(window).into_canvas();
+
     let aspect = canvas.get_aspect_ratio();
     let mut app = app::App::new(&mut canvas.factory, aspect);
 

@@ -33,8 +33,8 @@ struct Params<R: gfx::Resources> {
 }
 
 static VERTEX_SRC: &'static [u8] = b"
-    #version 120
-    attribute vec2 a_Pos;
+    #version 150 core
+    in vec2 a_Pos;
     uniform vec2 offset;
     uniform float scale;
     void main() {
@@ -44,10 +44,11 @@ static VERTEX_SRC: &'static [u8] = b"
 ";
 
 static FRAGMENT_SRC: &'static [u8] = b"
-    #version 120
+    #version 150 core
     uniform vec4 color;
+    out vec4 o_Color;
     void main() {
-        gl_FragColor = color;
+        o_Color = color;
     }
 ";
 

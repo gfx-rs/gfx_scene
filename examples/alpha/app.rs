@@ -31,8 +31,8 @@ struct Params<R: gfx::Resources> {
 }
 
 static VERTEX_SRC: &'static [u8] = b"
-    #version 120
-    attribute vec3 a_Pos;
+    #version 150 core
+    in vec3 a_Pos;
     uniform mat4 transform;
     void main() {
         gl_Position = transform * vec4(a_Pos, 1.0);
@@ -40,10 +40,11 @@ static VERTEX_SRC: &'static [u8] = b"
 ";
 
 static FRAGMENT_SRC: &'static [u8] = b"
-    #version 120
+    #version 150 core
     uniform vec4 color;
+    out vec4 o_Color;
     void main() {
-        gl_FragColor = color;
+        o_Color = color;
     }
 ";
 
