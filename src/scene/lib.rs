@@ -11,8 +11,7 @@ use std::marker::PhantomData;
 
 mod cull;
 
-pub use self::cull::{Culler, CullEntity, CullIterator, Frustum};
-pub use self::cull::draw as draw_culled;
+pub use self::cull::{Culler, Frustum, Context};
 
 /// Scene drawing error.
 #[derive(Debug)]
@@ -23,8 +22,33 @@ pub enum Error {
     Flush(gfx_phase::FlushError),
 }
 
-/// Number of enitites that failed to enqueue.
-pub type FailCount = usize;
+/// Rendering success report.
+#[derive(Clone, Debug)]
+pub struct Report {
+    /// Number of calls that the phase doesn't apply to.
+    pub calls_rejected: u32,
+    /// Number of calls that failed to link batches.
+    pub calls_failed: u32,
+    /// Number of calls that got culled out.
+    pub calls_culled: u32,
+    /// Number of calls in invisible entities.
+    pub calls_invisible: u32,
+    /// Number of calls issued to the GPU.
+    pub calls_passed: u32,
+}
+
+impl Report {
+    /// Create an empty `Report`.
+    pub fn new() -> Report {
+        Report {
+            calls_rejected: 0,
+            calls_failed: 0,
+            calls_culled: 0,
+            calls_invisible: 0,
+            calls_passed: 0,
+        }
+    }
+}
 
 /// Abstract scene that can be drawn into something.
 pub trait AbstractScene<R: gfx::Resources> {
@@ -37,7 +61,7 @@ pub trait AbstractScene<R: gfx::Resources> {
 
     /// Draw the contents of the scene with a specific phase into a stream.
     fn draw<H, S>(&self, &mut H, &Self::Camera, &mut S)
-            -> Result<FailCount, Error> where
+            -> Result<Report, Error> where
         H: gfx_phase::AbstractPhase<R, Self::Material, Self::ViewInfo>,
         S: gfx::Stream<R>;
 }
@@ -179,13 +203,13 @@ impl<
     type Camera = Camera<P, W::NodePtr>;
 
     fn draw<H, S>(&self, phase: &mut H, camera: &Camera<P, W::NodePtr>,
-            stream: &mut S) -> Result<FailCount, Error> where
+            stream: &mut S) -> Result<Report, Error> where
         H: gfx_phase::AbstractPhase<R, M, V>,
         S: gfx::Stream<R>,
     {
         let mut culler = Frustum::new();
-        let iter = culler.process(self.entities.iter(), &self.world, camera);
-        draw_culled(iter, phase, stream)
+        Context::new(&self.world, &mut culler, camera)
+                .draw(self.entities.iter(), phase, stream)
     }
 }
 
