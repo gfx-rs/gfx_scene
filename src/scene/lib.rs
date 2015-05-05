@@ -56,25 +56,58 @@ pub trait World {
     fn get_transform(&self, &Self::NodePtr) -> Self::Transform;
 }
 
+/// A fragment of an entity, contains a single draw call.
+#[derive(Clone, Debug)]
+pub struct Fragment<R: gfx::Resources, M> {
+    /// Fragment material.
+    pub material: M,
+    /// Mesh slice.
+    pub slice: gfx::Slice<R>,
+}
+
+impl<R: gfx::Resources, M> Fragment<R, M> {
+    /// Create a new fragment.
+    pub fn new(mat: M, slice: gfx::Slice<R>) -> Fragment<R, M> {
+        Fragment {
+            material: mat,
+            slice: slice,
+        }
+    }
+}
+
 /// A simple struct representing an object with a given material, mesh, bound,
 /// and spatial relation to other stuff in the world.
+#[derive(Clone, Debug)]
 pub struct Entity<R: gfx::Resources, M, W: World, B> {
     /// Name of the entity.
     pub name: String,
     /// Visibility flag.
     pub visible: bool,
-    /// Assotiated material of the entity.
-    pub material: M,
     /// Mesh.
     pub mesh: gfx::Mesh<R>,
-    /// Mesh slice.
-    pub slice: gfx::Slice<R>,
     /// Node pointer into the world.
     pub node: W::NodePtr,
     /// Skeleton pointer.
     pub skeleton: Option<W::SkeletonPtr>,
     /// Associated spatial bound of the entity.
     pub bound: B,
+    /// Vector of fragments, each of a different material.
+    pub fragments: Vec<Fragment<R, M>>,
+}
+
+impl<R: gfx::Resources, M, W: World, B> Entity<R, M, W, B> {
+    /// Create a minimal new `Entity`.
+    pub fn new(mesh: gfx::Mesh<R>, node: W::NodePtr, bound: B) -> Entity<R, M, W, B> {
+        Entity {
+            name: String::new(),
+            visible: true,
+            mesh: mesh,
+            node: node,
+            skeleton: None,
+            bound: bound,
+            fragments: Vec::new(),
+        }
+    }
 }
 
 /// A simple camera with generic projection and spatial relation.

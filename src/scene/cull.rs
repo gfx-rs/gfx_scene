@@ -17,8 +17,7 @@ pub struct CullEntity<'a, R: 'a + gfx::Resources, M: 'a, V> where
     R::Sampler: 'a,
 {
     mesh: &'a gfx::Mesh<R>,
-    slice: &'a gfx::Slice<R>,
-    material: &'a M,
+    fragments: &'a [::Fragment<R, M>],
     view_info: V,
 }
 
@@ -69,8 +68,7 @@ impl<'a, 'c, R, M, W, B, V, I, C> Iterator for CullIterator<'a, 'c, R, M, W, B, 
             if self.culler.cull(&ent.bound, &mvp) != cgmath::Relation::Out {
                 return Some(CullEntity {
                     mesh: &ent.mesh,
-                    slice: &ent.slice,
-                    material: &ent.material,
+                    fragments: &ent.fragments,
                     view_info: ::ViewInfo::new(mvp, view, model),
                 })
             }
@@ -157,12 +155,14 @@ pub fn draw<'a, R, M, V, I, H, S>(entities: I, phase: &mut H, stream: &mut S)
     S: gfx::Stream<R>
 {
     let mut fail = 0;
-    // enqueue entities
-    for e in entities {
-        match phase.enqueue(e.mesh, e.slice, e.material, &e.view_info) {
-            Ok(true) => (),
-            Ok(false) => fail += 1,
-            Err(e) => return Err(::Error::Batch(e)),
+    // enqueue fragments of the entities
+    for ent in entities {
+        for frag in ent.fragments.iter() {
+            match phase.enqueue(ent.mesh, &frag.slice, &frag.material, &ent.view_info) {
+                Ok(true) => (),
+                Ok(false) => fail += 1,
+                Err(e) => return Err(::Error::Batch(e)),
+            }
         }
     }
     // flush into the renderer

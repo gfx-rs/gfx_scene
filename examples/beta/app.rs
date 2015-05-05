@@ -180,12 +180,13 @@ impl<R: gfx::Resources + 'static> App<R> where
             gfx_scene::Entity {
                 name: format!("entity-{}", i),
                 visible: true,
-                material: Material,
                 mesh: mesh.clone(),
-                slice: slice.clone(),
                 node: scene.world.add(offset),
                 skeleton: None,
                 bound: Aabb3::new(Point3::new(0f32, 0.0, 0.0), Point3::new(1.0, 1.0, 0.0)),
+                fragments: vec![
+                    gfx_scene::Fragment::new(Material, slice.clone()),
+                ],
             }
         }).collect::<Vec<_>>();
         scene.entities.extend(entities.into_iter());
