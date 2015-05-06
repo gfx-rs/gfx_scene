@@ -118,7 +118,7 @@ impl<'a, 'c,
         // enqueue entities fragments
         for ent in entities {
             if !ent.visible {
-                report.calls_invisible += ent.fragments.len() as u32;
+                report.calls_invisible += ent.fragments.len() as ::Count;
                 continue
             }
             if let Some(view_info) = self.is_visible(&ent.node, &ent.bound) {
@@ -130,7 +130,7 @@ impl<'a, 'c,
                     }
                 }
             }else {
-                report.calls_culled += ent.fragments.len() as u32;
+                report.calls_culled += ent.fragments.len() as ::Count;
             }
         }
         // flush into the renderer

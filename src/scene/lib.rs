@@ -22,19 +22,22 @@ pub enum Error {
     Flush(gfx_phase::FlushError),
 }
 
+/// Type of the call counter.
+pub type Count = u32;
+
 /// Rendering success report.
 #[derive(Clone, Debug)]
 pub struct Report {
-    /// Number of calls that the phase doesn't apply to.
-    pub calls_rejected: u32,
-    /// Number of calls that failed to link batches.
-    pub calls_failed: u32,
-    /// Number of calls that got culled out.
-    pub calls_culled: u32,
     /// Number of calls in invisible entities.
-    pub calls_invisible: u32,
+    pub calls_invisible: Count,
+    /// Number of calls that got culled out.
+    pub calls_culled: Count,
+    /// Number of calls that the phase doesn't apply to.
+    pub calls_rejected: Count,
+    /// Number of calls that failed to link batches.
+    pub calls_failed: Count,
     /// Number of calls issued to the GPU.
-    pub calls_passed: u32,
+    pub calls_passed: Count,
 }
 
 impl Report {
@@ -47,6 +50,18 @@ impl Report {
             calls_invisible: 0,
             calls_passed: 0,
         }
+    }
+
+    /// Get total number of draw calls.
+    pub fn get_total(&self) -> Count {
+        self.calls_invisible + self.calls_culled +
+        self.calls_rejected  + self.calls_failed +
+        self.calls_passed
+    }
+
+    /// Get the rendered/submitted ratio.
+    pub fn get_ratio(&self) -> f32 {
+        self.calls_passed as f32 / self.get_total() as f32
     }
 }
 
