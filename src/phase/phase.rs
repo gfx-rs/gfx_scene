@@ -250,8 +250,10 @@ impl<
 
     fn flush<S: gfx::Stream<R>>(&mut self, stream: &mut S)
              -> Result<(), FlushError> {
-        if let Some(fun) = self.sort {
-            self.queue.sort(fun);
+        // sort the queue
+        match self.sort {
+            Some(fun) => self.queue.sort(fun),
+            None => self.queue.update(),
         }
         // accumulate the draws into the renderer
         for o in self.queue.iter() {
