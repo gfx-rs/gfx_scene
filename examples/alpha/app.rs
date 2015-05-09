@@ -51,7 +51,7 @@ static FRAGMENT_SRC: &'static [u8] = b"
 // Defining the technique, material, and entity
 
 struct Technique<R: gfx::Resources> {
-    program: gfx::ProgramHandle<R>,
+    program: gfx::handle::Program<R>,
     state_opaque: gfx::DrawState,
     state_transparent: gfx::DrawState,
 }

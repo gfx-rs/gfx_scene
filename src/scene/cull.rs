@@ -58,13 +58,13 @@ impl<'a, 'c,
     /// Create a new context.
     pub fn new<P>(world: &'a W, culler: &'c mut C, camera: &::Camera<P, W::NodePtr>)
                -> Context<'a, 'c, W, B, C> where
-        P: cgmath::Projection<W::Scalar>,
+        P: cgmath::Projection<W::Scalar> + Clone,
     {
-        use cgmath::{Matrix, ToMatrix4, Transform};
+        use cgmath::{Matrix, Transform};
         let cam_inverse = world.get_transform(&camera.node)
                                .invert().unwrap();
-        let projection = camera.projection.to_matrix4()
-                               .mul_m(&cam_inverse.to_matrix4());
+        let projection = camera.projection.clone().into()
+                               .mul_m(&cam_inverse.clone().into());
         culler.init();
         Context {
             world: world,
@@ -80,10 +80,10 @@ impl<'a, 'c,
                       -> Option<V> where
         V: ::ViewInfo<W::Scalar, W::Transform>,
     {
-        use cgmath::{Matrix, ToMatrix4, Transform};
+        use cgmath::{Matrix, Transform};
         let model = self.world.get_transform(node);
         let view = self.cam_inverse.concat(&model);
-        let mvp = self.projection.mul_m(&model.to_matrix4());
+        let mvp = self.projection.mul_m(&model.clone().into());
         if self.culler.cull(bound, &mvp) != cgmath::Relation::Out {
             Some(::ViewInfo::new(mvp, view, model))
         }else {
@@ -124,7 +124,10 @@ impl<'a, 'c,
             if let Some(view_info) = self.is_visible(&ent.node, &ent.bound) {
                 for frag in ent.fragments.iter() {
                     match phase.enqueue(&ent.mesh, &frag.slice, &frag.material, &view_info) {
-                        Ok(true)  => report.calls_passed += 1,
+                        Ok(true)  => {
+                            report.primitives_rendered += frag.slice.get_prim_count();
+                            report.calls_passed += 1;
+                        },
                         Ok(false) => report.calls_rejected += 1,
                         Err(e)    => return Err(::Error::Batch(e)),
                     }

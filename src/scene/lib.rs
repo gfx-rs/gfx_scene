@@ -38,6 +38,8 @@ pub struct Report {
     pub calls_failed: Count,
     /// Number of calls issued to the GPU.
     pub calls_passed: Count,
+    /// Number of primitives rendered.
+    pub primitives_rendered: Count,
 }
 
 impl Report {
@@ -49,19 +51,20 @@ impl Report {
             calls_culled: 0,
             calls_invisible: 0,
             calls_passed: 0,
+            primitives_rendered: 0,
         }
     }
 
     /// Get total number of draw calls.
-    pub fn get_total(&self) -> Count {
+    pub fn get_calls_total(&self) -> Count {
         self.calls_invisible + self.calls_culled +
         self.calls_rejected  + self.calls_failed +
         self.calls_passed
     }
 
-    /// Get the rendered/submitted ratio.
-    pub fn get_ratio(&self) -> f32 {
-        self.calls_passed as f32 / self.get_total() as f32
+    /// Get the rendered/submitted calls ratio.
+    pub fn get_calls_ratio(&self) -> f32 {
+        self.calls_passed as f32 / self.get_calls_total() as f32
     }
 }
 
@@ -162,15 +165,15 @@ pub struct Camera<P, N> {
 
 impl<
     S: cgmath::BaseFloat + 'static,
-    T: cgmath::ToMatrix4<S> + cgmath::Transform3<S> + Clone,
+    T: Into<cgmath::Matrix4<S>> + cgmath::Transform3<S> + Clone,
     W: World<Scalar = S, Transform = T>,
-    P: cgmath::ToMatrix4<S>
+    P: Into<cgmath::Matrix4<S>> + Clone,
 > Camera<P, W::NodePtr> {
     /// Get the view-projection matrix, given the `World`.
     pub fn get_view_projection(&self, world: &W) -> cgmath::Matrix4<S> {
         use cgmath::{Matrix, Transform};
         let node_inverse = world.get_transform(&self.node).invert().unwrap();
-        self.projection.to_matrix4().mul_m(&node_inverse.to_matrix4())
+        self.projection.clone().into().mul_m(&node_inverse.into())
     }
 }
 
@@ -210,7 +213,7 @@ impl<
     M: gfx_phase::Material,
     W: World,
     B: cgmath::Bound<W::Scalar> + Debug,
-    P: cgmath::Projection<W::Scalar>,
+    P: cgmath::Projection<W::Scalar> + Clone,
     V: ViewInfo<W::Scalar, W::Transform>,
 > AbstractScene<R> for Scene<R, M, W, B, P, V> {
     type ViewInfo = V;

@@ -30,7 +30,7 @@ pub trait ToDepth {
 
 /// Resulting type of the technique compilation.
 pub type TechResult<'a, R, P> = (
-    &'a gfx::ProgramHandle<R>,  // program
+    &'a gfx::handle::Program<R>,  // program
     P,                          // parameters
     Option<&'a gfx::Mesh<R>>,   // instancing
     &'a gfx::DrawState,         // state
