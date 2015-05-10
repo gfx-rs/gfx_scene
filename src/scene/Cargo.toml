@@ -1,6 +1,6 @@
 [package]
 name = "gfx_scene"
-version = "0.0.1"
+version = "0.1.0"
 description = "Space-aware scene rendering and culling."
 
 [lib]

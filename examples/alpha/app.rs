@@ -2,49 +2,43 @@ use std::marker::PhantomData;
 use cgmath::{Matrix, Matrix4, Point3, Vector3, vec3};
 use cgmath::{FixedArray, Transform, AffineMatrix3};
 use gfx;
+use gfx::attrib::Floater;
 use gfx::traits::*;
 use gfx_phase;
 
 
-#[vertex_format]
-#[derive(Clone, Copy)]
-struct Vertex {
-    #[as_float]
-    #[name = "a_Pos"]
-    pos: [i8; 3],
-}
+gfx_vertex!( Vertex {
+    a_Pos@ pos: [Floater<i8>; 3],
+});
 
 impl Vertex {
     fn new(x: i8, y: i8, z: i8) -> Vertex {
         Vertex {
-            pos: [x, y, z],
+            pos: Floater::cast3([x, y, z]),
         }
     }
 }
 
-#[shader_param]
-#[derive(Clone)]
-struct Params<R: gfx::Resources> {
-    transform: [[f32; 4]; 4],
-    color: [f32; 4],
-    _dummy: PhantomData<R>,
-}
+gfx_parameters!( Params/Link {
+    u_Transform@ transform: [[f32; 4]; 4],
+    u_Color@ color: [f32; 4],
+});
 
 static VERTEX_SRC: &'static [u8] = b"
     #version 150 core
     in vec3 a_Pos;
-    uniform mat4 transform;
+    uniform mat4 uTransform;
     void main() {
-        gl_Position = transform * vec4(a_Pos, 1.0);
+        gl_Position = uTransform * vec4(a_Pos, 1.0);
     }
 ";
 
 static FRAGMENT_SRC: &'static [u8] = b"
     #version 150 core
-    uniform vec4 color;
+    uniform vec4 u_Color;
     out vec4 o_Color;
     void main() {
-        o_Color = color;
+        o_Color = u_Color;
     }
 ";
 
@@ -100,7 +94,7 @@ for Technique<R> {
             Params {
                 transform: space.0.into_fixed(),
                 color: [0.4, 0.5, 0.6, 0.0],
-                _dummy: PhantomData,
+                _r: PhantomData,
             },
             None,
             if kernel {&self.state_transparent} else {&self.state_opaque},

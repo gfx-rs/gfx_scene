@@ -1,5 +1,6 @@
 use std;
 use cgmath;
+use gfx::attrib::Floater;
 use gfx;
 use gfx::traits::*;
 use gfx_phase;
@@ -7,48 +8,41 @@ use gfx_scene;
 
 static SCALE: f32 = 10.0;
 
-#[vertex_format]
-#[derive(Clone, Copy)]
-struct Vertex {
-    #[as_float]
-    #[name = "a_Pos"]
-    pos: [i8; 2],
-}
+gfx_vertex!( Vertex {
+    a_Pos@ pos: [Floater<i8>; 2],
+});
 
 impl Vertex {
     fn new(x: i8, y: i8) -> Vertex {
         Vertex {
-            pos: [x, y],
+            pos: [Floater(x), Floater(y)],
         }
     }
 }
 
-#[shader_param]
-#[derive(Clone)]
-struct Params<R: gfx::Resources> {
-    offset: [f32; 2],
-    color: [f32; 4],
-    scale: f32,
-    _dummy: std::marker::PhantomData<R>,
-}
+gfx_parameters!( Params/Link {
+    u_Offset@ offset: [f32; 2],
+    u_Color@ color: [f32; 4],
+    u_Scale@ scale: f32,
+});
 
 static VERTEX_SRC: &'static [u8] = b"
     #version 150 core
     in vec2 a_Pos;
-    uniform vec2 offset;
-    uniform float scale;
+    uniform vec2 u_Offset;
+    uniform float u_Scale;
     void main() {
-        vec2 pos = (a_Pos + offset)/scale;
+        vec2 pos = (a_Pos + u_Offset)/u_Scale;
         gl_Position = vec4(pos, 0.0, 1.0);
     }
 ";
 
 static FRAGMENT_SRC: &'static [u8] = b"
     #version 150 core
-    uniform vec4 color;
+    uniform vec4 u_Color;
     out vec4 o_Color;
     void main() {
-        o_Color = color;
+        o_Color = u_Color;
     }
 ";
 
@@ -96,7 +90,7 @@ for Technique<R> {
                 offset: [0.0; 2],
                 color: [0.4, 0.5, 0.6, 0.0],
                 scale: SCALE,
-                _dummy: std::marker::PhantomData,
+                _r: std::marker::PhantomData,
             },
             None,
             &self.state,

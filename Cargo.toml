@@ -1,6 +1,6 @@
 [package]
 name = "gfx_scene_meta"
-version = "0.0.1"
+version = "0.1.0"
 license = "Apache-2.0"
 keywords = ["graphics", "gamedev"]
 authors = [
@@ -27,10 +27,6 @@ git = "https://github.com/gfx-rs/draw_state"
 
 [dev_dependencies.gfx]
 git = "https://github.com/gfx-rs/gfx-rs"
-
-[dev_dependencies.gfx_macros]
-git = "https://github.com/gfx-rs/gfx_macros"
-plugin = true
 
 [dev_dependencies.glutin]
 git = "https://github.com/tomaka/glutin"

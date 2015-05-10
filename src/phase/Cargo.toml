@@ -1,6 +1,6 @@
 [package]
 name = "gfx_phase"
-version = "0.0.1"
+version = "0.1.0"
 description = "Render phase abstraction for gfx-rs"
 
 [lib]

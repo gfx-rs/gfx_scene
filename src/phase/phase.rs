@@ -32,11 +32,12 @@ pub struct Object<S, K, P: gfx::shade::ShaderParam> {
 }
 
 impl<S: Copy, K: Copy, P: gfx::shade::ShaderParam + Clone> Clone
-for Object<S, K, P> where P::Link: Copy
+for Object<S, K, P> where
+    P::Link: Clone,
 {
     fn clone(&self) -> Object<S, K, P> {
         Object {
-            batch: self.batch,
+            batch: self.batch.clone(),
             params: self.params.clone(),
             slice: self.slice.clone(),
             depth: self.depth,
@@ -188,7 +189,7 @@ impl<
     >,
 >AbstractPhase<R, M, V> for Phase<R, M, V, T, Y> where
     T::Params: Clone,
-    <T::Params as gfx::shade::ShaderParam>::Link: Copy,
+    <T::Params as gfx::shade::ShaderParam>::Link: Clone,
 {
     fn enqueue(&mut self, orig_mesh: &gfx::Mesh<R>, slice: &gfx::Slice<R>,
                material: &M, view_info: &V)

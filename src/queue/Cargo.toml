@@ -1,6 +1,6 @@
 [package]
 name = "draw_queue"
-version = "0.0.1"
+version = "0.1.0"
 description = "Basic draw queue with sorting by minimal updates."
 
 [lib]
