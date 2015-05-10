@@ -1,7 +1,11 @@
 [package]
 name = "gfx_scene"
 version = "0.1.0"
-description = "Space-aware scene rendering and culling."
+description = "Space-aware scene rendering and culling"
+license = "Apache-2.0"
+authors = [
+"Dzmitry Malyshau <kvarkus@gmail.com>",
+]
 
 [lib]
 name = "gfx_scene"
@@ -9,9 +13,12 @@ path = "lib.rs"
 
 [dependencies.gfx_phase]
 path = "../phase"
+#version = "*"
 
 [dependencies.gfx]
 git = "https://github.com/gfx-rs/gfx-rs"
+#version = "*"
 
 [dependencies.cgmath]
 git = "https://github.com/bjz/cgmath-rs"
+#version = "*"

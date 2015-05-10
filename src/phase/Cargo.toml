@@ -2,6 +2,10 @@
 name = "gfx_phase"
 version = "0.1.0"
 description = "Render phase abstraction for gfx-rs"
+license = "Apache-2.0"
+authors = [
+"Dzmitry Malyshau <kvarkus@gmail.com>",
+]
 
 [lib]
 name = "gfx_phase"
@@ -9,9 +13,11 @@ path = "lib.rs"
 
 [dependencies.draw_queue]
 path = "../queue"
+#version = "*"
 
 [dependencies.gfx]
 git = "https://github.com/gfx-rs/gfx-rs"
+#version = "*"
 
 [dependencies]
 log = "*"
