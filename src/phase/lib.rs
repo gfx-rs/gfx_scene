@@ -14,7 +14,7 @@ mod phase;
 use std::fmt::Debug;
 use std::hash::Hash;
 
-pub use self::phase::{Object, sort, FlushError,
+pub use self::phase::{Object, sort, FlushError, OrderFun,
                       AbstractPhase, CachedPhase, Phase};
 
 /// Abstract material.
