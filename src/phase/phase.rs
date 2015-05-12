@@ -46,6 +46,14 @@ for Object<S, K, P> where
     }
 }
 
+impl<S, K, P: gfx::shade::ShaderParam> Object<S, K, P> {
+    /// Make a full batch from this object.
+    pub fn with<'a>(&'a self, context: &'a gfx::batch::Context<P::Resources>)
+                -> gfx::batch::CoreBatchFull<'a, P> {
+        context.bind(&self.batch, &self.slice, &self.params)
+    }
+}
+
 impl<S: PartialOrd, K, P: gfx::shade::ShaderParam> Object<S, K, P> {
     /// A helper method to compare the depth, which is only partially ordered.
     pub fn cmp_depth(&self, other: &Object<S, K, P>) -> Ordering {
@@ -251,16 +259,20 @@ impl<
 
     fn flush<S: gfx::Stream<R>>(&mut self, stream: &mut S)
              -> Result<(), FlushError> {
-        // sort the queue
         match self.sort {
-            Some(fun) => self.queue.sort(fun),
-            None => self.queue.update(),
-        }
-        // accumulate the draws into the renderer
-        for o in self.queue.iter() {
-            match stream.draw(&self.context.bind(&o.batch, &o.slice, &o.params)) {
-                Ok(_) => (),
-                e => return e,
+            Some(fun) => {
+                // sort the queue
+                self.queue.sort(fun);
+                // accumulate the sorted draws into the renderer
+                for o in self.queue.iter() {
+                    try!(stream.draw(&o.with(&self.context)));
+                }
+            },
+            None => {
+                // accumulate the raw draws into the renderer
+                for o in self.queue.objects.iter() {
+                    try!(stream.draw(&o.with(&self.context)));
+                }
             }
         }
         // done
