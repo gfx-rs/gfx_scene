@@ -1,6 +1,6 @@
 [package]
 name = "gfx_scene_meta"
-version = "0.1.0"
+version = "0.0.2"
 description = "Meta package for high-level rendering libraries on gfx-rs"
 license = "Apache-2.0"
 keywords = ["graphics", "gamedev"]

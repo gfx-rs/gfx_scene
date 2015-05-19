@@ -13,16 +13,16 @@ fn main() {
     let window = glutin::WindowBuilder::new()
         .with_title("Alpha: gfx_phase example".to_string())
         .with_vsync()
-        .with_gl(glutin::GlRequest::Specific(glutin::Api::OpenGl, (3, 2)))
+        .with_gl(glutin::GL_CORE)
         .build().unwrap();
-    let mut canvas = gfx_window_glutin::init(window).into_canvas();
+    let (mut stream, mut device, mut factory) = gfx_window_glutin::init(window);
 
-    let aspect = canvas.get_aspect_ratio();
-    let mut app = app::App::new(&mut canvas.factory, aspect);
+    let aspect = stream.get_aspect_ratio();
+    let mut app = app::App::new(&mut factory, aspect);
 
     'main: loop {
         // quit when Esc is pressed.
-        for event in canvas.output.window.poll_events() {
+        for event in stream.out.window.poll_events() {
             match event {
                 glutin::Event::KeyboardInput(_, _, Some(glutin::VirtualKeyCode::Escape)) => break 'main,
                 glutin::Event::Closed => break 'main,
@@ -30,7 +30,11 @@ fn main() {
             }
         }
         
-        app.render(&mut canvas);
-        canvas.present();
+        app.render(&mut stream);
+
+        //stream.present(&mut device);
+        stream.flush(&mut device);
+        stream.out.window.swap_buffers();
+        device.cleanup();
     }
 }

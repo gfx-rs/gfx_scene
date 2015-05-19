@@ -20,7 +20,7 @@ impl Vertex {
     }
 }
 
-gfx_parameters!( Params/Link {
+gfx_parameters!( Params {
     u_Offset@ offset: [f32; 2],
     u_Color@ color: [f32; 4],
     u_Scale@ scale: f32,

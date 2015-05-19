@@ -19,7 +19,7 @@ impl Vertex {
     }
 }
 
-gfx_parameters!( Params/Link {
+gfx_parameters!( Params {
     u_Transform@ transform: [[f32; 4]; 4],
     u_Color@ color: [f32; 4],
 });
@@ -27,9 +27,9 @@ gfx_parameters!( Params/Link {
 static VERTEX_SRC: &'static [u8] = b"
     #version 150 core
     in vec3 a_Pos;
-    uniform mat4 uTransform;
+    uniform mat4 u_Transform;
     void main() {
-        gl_Position = uTransform * vec4(a_Pos, 1.0);
+        gl_Position = u_Transform * vec4(a_Pos, 1.0);
     }
 ";
 
@@ -131,7 +131,6 @@ impl<R: gfx::Resources> App<R> {
             Vertex::new(2, 0, -1),
             Vertex::new(0, 0, 2),
         ];
-
         let mesh = factory.create_mesh(&vertex_data);
 
         let index_data: &[u8] = &[
@@ -140,10 +139,7 @@ impl<R: gfx::Resources> App<R> {
             1, 3, 2,
             2, 3, 0,
         ];
-
-        let slice = factory
-            .create_buffer_index(index_data)
-            .to_slice(gfx::PrimitiveType::TriangleList);
+        let slice = index_data.to_slice(factory, gfx::PrimitiveType::TriangleList);
 
         let entities = (0..10).map(|i| Entity {
             mesh: mesh.clone(),
