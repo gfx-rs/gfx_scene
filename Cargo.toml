@@ -2,12 +2,10 @@
 name = "gfx_scene_meta"
 version = "0.0.2"
 description = "Meta package for high-level rendering libraries on gfx-rs"
-license = "Apache-2.0"
+homepage = "https://github.com/gfx-rs/gfx_scene"
 keywords = ["graphics", "gamedev"]
-homepage = "https://github.com/kvark/gfx_scene"
-authors = [
-"Dzmitry Malyshau <kvarkus@gmail.com>",
-]
+license = "Apache-2.0"
+authors = ["The Gfx-rs Developers"]
 
 [lib]
 name = "gfx_scene_meta"
