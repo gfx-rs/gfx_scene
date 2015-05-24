@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/kvark/gfx_scene.png?branch=master)](https://travis-ci.org/kvark/gfx_scene)
+[![Build Status](https://travis-ci.org/gfx-rs/gfx_scene.png?branch=master)](https://travis-ci.org/gfx-rs/gfx_scene)
 
 ## Why high-level rendering?
 
