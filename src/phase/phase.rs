@@ -7,7 +7,7 @@ use gfx;
 use mem;
 
 /// Potential error occuring during rendering.
-pub type FlushError = gfx::DrawError<gfx::batch::OutOfBounds>;
+pub type FlushError = gfx::DrawError<gfx::batch::Error>;
 
 /// An abstract rendering phase.
 pub trait AbstractPhase<R: gfx::Resources, M, V: ::ToDepth> {
