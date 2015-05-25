@@ -76,10 +76,13 @@ pub trait AbstractScene<R: gfx::Resources> {
     type Material;
     /// A type of the camera.
     type Camera;
+    /// the status information from the render results
+    /// this can be used to communicate meta from the render
+    type Status;
 
     /// Draw the contents of the scene with a specific phase into a stream.
     fn draw<H, S>(&self, &mut H, &Self::Camera, &mut S)
-            -> Result<Report, Error> where
+            -> Result<Self::Status, Error> where
         H: gfx_phase::AbstractPhase<R, Self::Material, Self::ViewInfo>,
         S: gfx::Stream<R>;
 }
@@ -92,7 +95,7 @@ pub trait World {
     type Transform: cgmath::Transform3<Self::Scalar> + Clone;
     /// Pointer to a node, associated with an entity, camera, or something else.
     type NodePtr;
-    /// Pointer to a skeleton, associated with an enttity.
+    /// Pointer to a skeleton, associated with an entity.
     type SkeletonPtr;
     /// Get the transformation of a specific node pointer.
     fn get_transform(&self, &Self::NodePtr) -> Self::Transform;
@@ -219,6 +222,7 @@ impl<
     type ViewInfo = V;
     type Material = M;
     type Camera = Camera<P, W::NodePtr>;
+    type Status = Report;
 
     fn draw<H, S>(&self, phase: &mut H, camera: &Camera<P, W::NodePtr>,
             stream: &mut S) -> Result<Report, Error> where
