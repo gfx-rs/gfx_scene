@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use draw_queue;
 use gfx;
 use mem;
+use draw_state::DrawState;
 
 /// Potential error occuring during rendering.
 pub type FlushError = gfx::DrawError<gfx::batch::Error>;
@@ -24,11 +25,12 @@ pub trait AbstractPhase<R: gfx::Resources, M, V: ::ToDepth> {
 /// accessed by immutable references by the user.
 #[allow(missing_docs)]
 pub struct Object<S, K, P: gfx::shade::ShaderParam> {
-    pub batch: gfx::batch::CoreBatch<P>,
+    pub batch: gfx::batch::Core<P>,
     pub params: P,
     pub slice: gfx::Slice<P::Resources>,
     pub depth: S,
     pub kernel: K,
+    pub state: DrawState
 }
 
 impl<S: Copy, K: Copy, P: gfx::shade::ShaderParam + Clone> Clone
@@ -42,15 +44,15 @@ for Object<S, K, P> where
             slice: self.slice.clone(),
             depth: self.depth,
             kernel: self.kernel,
+            state: self.state
         }
     }
 }
 
 impl<S, K, P: gfx::shade::ShaderParam> Object<S, K, P> {
     /// Make a full batch from this object.
-    pub fn with<'a>(&'a self, context: &'a gfx::batch::Context<P::Resources>)
-                -> gfx::batch::CoreBatchFull<'a, P> {
-        context.bind(&self.batch, &self.slice, &self.params)
+    pub fn with<'a>(&'a self, state: &'a gfx::DrawState) -> gfx::batch::Complete<'a, P> {
+        self.batch.with(&self.slice, &self.params, state)
     }
 }
 
@@ -87,20 +89,27 @@ pub mod sort {
     pub fn program<S, K, P: ShaderParam>(a: &Object<S, K, P>, b: &Object<S, K, P>)
                    -> Ordering
     {
-        a.batch.cmp_program(&b.batch)
+        a.batch.program().cmp_ref(&b.batch.program())
     }
     /// Sort by mesh. Allows minimizing the vertex format changes.
     pub fn mesh<S, K, P: ShaderParam>(a: &Object<S, K, P>, b: &Object<S, K, P>)
                 -> Ordering
     {
-        a.batch.cmp_mesh(&b.batch)
+        for (a, b) in a.batch.mesh().attributes.iter().zip(b.batch.mesh().attributes.iter()) {
+            match a.buffer.cmp_ref(&b.buffer) {
+                Ordering::Equal => continue,
+                x => return x
+            }
+        }
+        Ordering::Equal
     }
-    /// Sort by draw state.
+
+    /*/// Sort by draw state.
     pub fn state<S, K, P: ShaderParam>(a: &Object<S, K, P>, b: &Object<S, K, P>)
                  -> Ordering
     {
-        a.batch.cmp_state(&b.batch)
-    }
+        a.batch.state.partial_cmp(&b.batch.state)
+    }*/
 }
 
 /// Ordering function.
@@ -125,8 +134,6 @@ pub struct Phase<
     memory: Y,
     /// Sorted draw queue.
     queue: draw_queue::Queue<Object<V::Depth, T::Kernel, T::Params>>,
-    /// Batch context.
-    context: gfx::batch::Context<R>,
 }
 
 /// Memory typedef using a `HashMap`.
@@ -160,8 +167,7 @@ impl<
             technique: tech,
             sort: None,
             memory: (),
-            queue: draw_queue::Queue::new(),
-            context: gfx::batch::Context::new(),
+            queue: draw_queue::Queue::new()
         }
     }
 
@@ -182,7 +188,6 @@ impl<
             sort: self.sort,
             memory: HashMap::new(),
             queue: self.queue,
-            context: self.context,
         }
     }
 }
@@ -235,13 +240,14 @@ impl<
             None => orig_mesh,
         };
         // Create queue object
-        let object = self.context.make_core(program, mesh, state)
+        let object = gfx::batch::Core::new(mesh.clone(), program.clone())
             .map(|b| Object {
                 batch: b,
                 params: params,
                 slice: slice.clone(),
                 depth: depth,
                 kernel: kernel,
+                state: *state
             });
         // Remember and return
         self.memory.store(key, object.clone());
@@ -265,13 +271,13 @@ impl<
                 self.queue.sort(fun);
                 // accumulate the sorted draws into the renderer
                 for o in self.queue.iter() {
-                    try!(stream.draw(&o.with(&self.context)));
+                    try!(stream.draw(&o.with(&o.state)));
                 }
             },
             None => {
                 // accumulate the raw draws into the renderer
                 for o in self.queue.objects.iter() {
-                    try!(stream.draw(&o.with(&self.context)));
+                    try!(stream.draw(&o.with(&o.state)));
                 }
             }
         }

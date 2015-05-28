@@ -16,8 +16,8 @@ path = "../queue"
 #version = "*"
 
 [dependencies.gfx]
-git = "https://github.com/gfx-rs/gfx-rs"
-#version = "*"
+version = "0.6.*"
 
 [dependencies]
 log = "*"
+draw_state = "*"
