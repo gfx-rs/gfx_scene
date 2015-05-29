@@ -1,6 +1,6 @@
 [package]
 name = "gfx_scene_meta"
-version = "0.0.2"
+version = "0.0.3"
 description = "Meta package for high-level rendering libraries on gfx-rs"
 homepage = "https://github.com/gfx-rs/gfx_scene"
 keywords = ["graphics", "gamedev"]
@@ -19,20 +19,11 @@ path = "src/phase"
 [dependencies.gfx_scene]
 path = "src/scene"
 
-[dev_dependencies.cgmath]
-git = "https://github.com/bjz/cgmath-rs"
-
-[dev_dependencies.draw_state]
-git = "https://github.com/gfx-rs/draw_state"
-
-[dev_dependencies.gfx]
-git = "https://github.com/gfx-rs/gfx-rs"
-
-[dev_dependencies.glutin]
-
-[dev_dependencies.gfx_window_glutin]
-git = "https://github.com/gfx-rs/gfx_window_glutin"
-
+[dev_dependencies]
+cgmath = "*"
+gfx = "0.6.*"
+glutin = "*"
+gfx_window_glutin = "*"
 
 [[example]]
 name = "alpha"

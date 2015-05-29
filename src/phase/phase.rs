@@ -5,7 +5,6 @@ use std::collections::HashMap;
 use draw_queue;
 use gfx;
 use mem;
-use draw_state::DrawState;
 
 /// Potential error occuring during rendering.
 pub type FlushError = gfx::DrawError<gfx::batch::Error>;
@@ -30,7 +29,7 @@ pub struct Object<S, K, P: gfx::shade::ShaderParam> {
     pub slice: gfx::Slice<P::Resources>,
     pub depth: S,
     pub kernel: K,
-    pub state: DrawState
+    pub state: gfx::DrawState,
 }
 
 impl<S: Copy, K: Copy, P: gfx::shade::ShaderParam + Clone> Clone
