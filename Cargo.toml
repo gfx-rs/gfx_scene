@@ -1,6 +1,6 @@
 [package]
 name = "gfx_scene_meta"
-version = "0.0.3"
+version = "0.0.4"
 description = "Meta package for high-level rendering libraries on gfx-rs"
 homepage = "https://github.com/gfx-rs/gfx_scene"
 keywords = ["graphics", "gamedev"]
