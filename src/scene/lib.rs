@@ -104,15 +104,15 @@ impl<R: gfx::Resources, M> Fragment<R, M> {
 }
 
 /// An abstract node in space.
-pub trait Node<W> {
+pub trait Node {
     /// Associated abstract transformation (affine matrix, decomposed, etc).
     type Transform;
     /// Get local -> world transform.
-    fn get_transform(&self, world: &W) -> Self::Transform;
+    fn get_transform(&self) -> Self::Transform;
 }
 
 /// An abstract entity.
-pub trait Entity<R: gfx::Resources, M, F, W>: Node<W> {
+pub trait Entity<R: gfx::Resources, M>: Node {
     /// Type of the spatial bound (box, sphere, etc).
     type Bound;
     /// Check if it's visible.
@@ -120,24 +120,24 @@ pub trait Entity<R: gfx::Resources, M, F, W>: Node<W> {
     /// Get the local bound.
     fn get_bound(&self) -> Self::Bound;
     /// Get the mesh.
-    fn get_mesh<'a>(&'a self) -> &'a gfx::Mesh<R>;
+    fn get_mesh(&self) -> &gfx::Mesh<R>;
     /// Get the drawable fragments of this entity.
-    fn get_fragments<'a>(&'a self, frag_storage: &'a F) -> &'a [Fragment<R, M>];
+    fn get_fragments(&self) -> &[Fragment<R, M>];
 }
 
 /// An abstract camera.
-pub trait Camera<S, W>: Node<W> {
+pub trait Camera<S>: Node {
     /// Associated projection type (perspective, ortho, etc)
     type Projection: cgmath::Projection<S>;
     /// Get the projection.
     fn get_projection(&self) -> Self::Projection;
     /// Compute the view-projection matrix.
-    fn get_view_projection(&self, world: &W) -> cgmath::Matrix4<S> where
+    fn get_view_projection(&self) -> cgmath::Matrix4<S> where
         S: cgmath::BaseFloat,
         Self::Transform : cgmath::Transform3<S>
     {
         use cgmath::{Matrix, Transform};
-        let view = self.get_transform(world).invert().unwrap();
+        let view = self.get_transform().invert().unwrap();
         self.get_projection().into().mul_m(&view.into())
     }
 }

@@ -114,19 +114,16 @@ impl gfx_scene::ViewInfo<f32, Transform<f32>> for ViewInfo {
     }
 }
 
-struct World;
-struct FragmentStorage;
-
 struct Camera<S>(cgmath::Ortho<S>);
 
-impl<S: cgmath::BaseFloat> gfx_scene::Node<World> for Camera<S> {
+impl<S: cgmath::BaseFloat> gfx_scene::Node for Camera<S> {
     type Transform = Transform<S>;
-    fn get_transform(&self, _: &World) -> Transform<S> {
+    fn get_transform(&self) -> Transform<S> {
         cgmath::Transform::identity()
     }
 }
 
-impl<S: cgmath::BaseFloat> gfx_scene::Camera<S, World> for Camera<S> {
+impl<S: cgmath::BaseFloat> gfx_scene::Camera<S> for Camera<S> {
     type Projection = cgmath::Ortho<S>;
     fn get_projection(&self) -> cgmath::Ortho<S> {
         self.0.clone()
@@ -140,24 +137,22 @@ struct Entity<S, R: gfx::Resources> {
     bound: cgmath::Aabb3<S>,
 }
 
-impl<S: Clone, R: gfx::Resources> gfx_scene::Node<World> for Entity<S, R> {
+impl<S: Clone, R: gfx::Resources> gfx_scene::Node for Entity<S, R> {
     type Transform = Transform<S>;
-    fn get_transform(&self, _: &World) -> Transform<S> {
+    fn get_transform(&self) -> Transform<S> {
         self.transform.clone()
     }
 }
 
-impl<S: Clone, R: gfx::Resources> gfx_scene::Entity<R, Material, FragmentStorage, World> for Entity<S, R> {
+impl<S: Clone, R: gfx::Resources> gfx_scene::Entity<R, Material> for Entity<S, R> {
     type Bound = cgmath::Aabb3<S>;
     fn get_bound(&self) -> Self::Bound {
         self.bound.clone()
     }
-    fn get_mesh<'a>(&'a self) -> &'a gfx::Mesh<R> {
+    fn get_mesh(&self) -> &gfx::Mesh<R> {
         &self.mesh
     }
-    fn get_fragments<'a>(&'a self, _: &'a FragmentStorage)
-                     -> &'a [gfx_scene::Fragment<R, Material>]
-    {
+    fn get_fragments(&self) -> &[gfx_scene::Fragment<R, Material>] {
         &self.fragments
     }
 }
@@ -226,8 +221,8 @@ impl<R: gfx::Resources> App<R> {
         };
         stream.clear(clear_data);
         let mut culler = gfx_scene::Frustum::new();
-        gfx_scene::Context::new(&World, &mut culler, &self.camera)
-                .draw(self.scene.iter(), &FragmentStorage, &mut self.phase, stream)
+        gfx_scene::Context::new(&mut culler, &self.camera)
+                .draw(self.scene.iter(), &mut self.phase, stream)
                 .unwrap();
     }
 }
