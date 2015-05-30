@@ -1,6 +1,6 @@
 [package]
 name = "gfx_scene"
-version = "0.2.0"
+version = "0.3.0"
 description = "Space-aware scene rendering and culling"
 license = "Apache-2.0"
 authors = ["The Gfx-rs Developers"]

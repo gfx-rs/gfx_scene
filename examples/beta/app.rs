@@ -84,7 +84,8 @@ for Technique<R> {
     }
 
     fn compile<'a>(&'a self, _: (), _: &ViewInfo)
-                   -> gfx_phase::TechResult<'a, R, Params<R>> {
+               -> gfx_phase::TechResult<'a, R, Params<R>>
+    {
         (   &self.program,
             Params {
                 offset: [0.0; 2],
@@ -114,25 +115,50 @@ impl gfx_scene::ViewInfo<f32, Transform<f32>> for ViewInfo {
 }
 
 struct World;
+struct FragmentStorage;
 
-impl World {
-    pub fn add(&mut self, offset: cgmath::Vector2<f32>) -> Transform<f32> {
-        cgmath::Decomposed {
-            scale: 1.0,
-            rot: cgmath::Quaternion::identity(),
-            disp: cgmath::vec3(offset.x, offset.y, 0.0),
-        }
+struct Camera<S>(cgmath::Ortho<S>);
+
+impl<S: cgmath::BaseFloat> gfx_scene::Node<World> for Camera<S> {
+    type Transform = Transform<S>;
+    fn get_transform(&self, _: &World) -> Transform<S> {
+        cgmath::Transform::identity()
     }
 }
 
-impl gfx_scene::World for World {
-    type Scalar = f32;
-    type Transform = Transform<f32>;
-    type NodePtr = Transform<f32>;
-    type SkeletonPtr = ();
+impl<S: cgmath::BaseFloat> gfx_scene::Camera<S, World> for Camera<S> {
+    type Projection = cgmath::Ortho<S>;
+    fn get_projection(&self) -> cgmath::Ortho<S> {
+        self.0.clone()
+    }
+}
 
-    fn get_transform(&self, node: &Transform<f32>) -> Transform<f32> {
-        *node
+struct Entity<S, R: gfx::Resources> {
+    mesh: gfx::Mesh<R>,
+    fragments: Vec<gfx_scene::Fragment<R, Material>>,
+    transform: Transform<S>,
+    bound: cgmath::Aabb3<S>,
+}
+
+impl<S: Clone, R: gfx::Resources> gfx_scene::Node<World> for Entity<S, R> {
+    type Transform = Transform<S>;
+    fn get_transform(&self, _: &World) -> Transform<S> {
+        self.transform.clone()
+    }
+}
+
+impl<S: Clone, R: gfx::Resources> gfx_scene::Entity<R, Material, FragmentStorage, World> for Entity<S, R> {
+    type Bound = cgmath::Aabb3<S>;
+    fn get_bound(&self) -> Self::Bound {
+        self.bound.clone()
+    }
+    fn get_mesh<'a>(&'a self) -> &'a gfx::Mesh<R> {
+        &self.mesh
+    }
+    fn get_fragments<'a>(&'a self, _: &'a FragmentStorage)
+                     -> &'a [gfx_scene::Fragment<R, Material>]
+    {
+        &self.fragments
     }
 }
 
@@ -140,20 +166,11 @@ impl gfx_scene::World for World {
 
 pub struct App<R: gfx::Resources> {
     phase: gfx_phase::Phase<R, Material, ViewInfo, Technique<R>, ()>,
-    scene: gfx_scene::Scene<R, Material, World, cgmath::Aabb3<f32>, cgmath::Ortho<f32>, ViewInfo>,
-    camera: gfx_scene::Camera<cgmath::Ortho<f32>, <World as gfx_scene::World>::NodePtr>,
+    scene: Vec<Entity<f32, R>>,
+    camera: Camera<f32>,
 }
 
-impl<R: gfx::Resources + 'static> App<R> where
-    R::Buffer: 'static,
-    R::ArrayBuffer: 'static,
-    R::Shader: 'static,
-    R::Program: 'static,
-    R::FrameBuffer: 'static,
-    R::Surface: 'static,
-    R::Texture: 'static,
-    R::Sampler: 'static,
-{
+impl<R: gfx::Resources> App<R> {
     pub fn new<F: gfx::Factory<R>>(factory: &mut F) -> App<R> {
         let vertex_data = [
             Vertex::new(0, 1),
@@ -165,42 +182,37 @@ impl<R: gfx::Resources + 'static> App<R> where
         let mesh = factory.create_mesh(&vertex_data);
         let slice = mesh.to_slice(gfx::PrimitiveType::TriangleStrip);
 
-        let mut scene = gfx_scene::Scene::new(World);
         let num = 10usize;
         let entities = (0..num).map(|i| {
             use cgmath::{Aabb3, Point3, vec2};
             let angle = (i as f32) / (num as f32) * std::f32::consts::PI * 2.0;
             let offset = vec2(4.0 * angle.cos(), 4.0 * angle.sin());
-            gfx_scene::Entity {
-                name: format!("entity-{}", i),
-                visible: true,
+            Entity {
                 mesh: mesh.clone(),
-                node: scene.world.add(offset),
-                skeleton: None,
+                transform: cgmath::Decomposed {
+                    scale: 1.0,
+                    rot: cgmath::Quaternion::identity(),
+                    disp: cgmath::vec3(offset.x, offset.y, 0.0),
+                },
                 bound: Aabb3::new(Point3::new(0f32, 0.0, 0.0), Point3::new(1.0, 1.0, 0.0)),
                 fragments: vec![
                     gfx_scene::Fragment::new(Material, slice.clone()),
                 ],
             }
-        }).collect::<Vec<_>>();
-        scene.entities.extend(entities.into_iter());
+        }).collect();
 
         let phase = gfx_phase::Phase::new("Main", Technique::new(factory))
                                      .with_sort(gfx_phase::sort::program);
 
-        let camera = gfx_scene::Camera {
-            name: "Cam".to_string(),
-            projection: cgmath::Ortho {
-                left: -SCALE, right: SCALE,
-                bottom: -SCALE, top: SCALE,
-                near: -1f32, far: 1f32,
-            },
-            node: scene.world.add(cgmath::Vector2::new(0.0, 0.0))
-        };
+        let camera = Camera(cgmath::Ortho {
+            left: -SCALE, right: SCALE,
+            bottom: -SCALE, top: SCALE,
+            near: -1f32, far: 1f32,
+        });
 
         App {
             phase: phase,
-            scene: scene,
+            scene: entities,
             camera: camera,
         }
     }
@@ -213,6 +225,9 @@ impl<R: gfx::Resources + 'static> App<R> where
             stencil: 0,
         };
         stream.clear(clear_data);
-        self.scene.draw(&mut self.phase, &self.camera, stream).unwrap();
+        let mut culler = gfx_scene::Frustum::new();
+        gfx_scene::Context::new(&World, &mut culler, &self.camera)
+                .draw(self.scene.iter(), &FragmentStorage, &mut self.phase, stream)
+                .unwrap();
     }
 }

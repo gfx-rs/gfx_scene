@@ -38,52 +38,55 @@ impl<S: cgmath::BaseFloat, B: cgmath::Bound<S>> Culler<S, B> for Frustum<S, B> {
 
 
 /// Culler context.
-pub struct Context<'a, 'c, W, B, C> where
-    W: ::World + 'a,
-    B: cgmath::Bound<W::Scalar>,
-    C: Culler<W::Scalar, B> + 'c,
+pub struct Context<'a, 'c, W, S, B, T, U> where
+    W: 'a,
+    B: cgmath::Bound<S>,
+    U: Culler<S, B> + 'c,
 {
     world: &'a W,
-    culler: &'c mut C,
-    cam_inverse: W::Transform,
-    projection: cgmath::Matrix4<W::Scalar>,
+    culler: &'c mut U,
+    cam_inverse: T,
+    view_projection: cgmath::Matrix4<S>,
     dummy: PhantomData<B>,
 }
 
 impl<'a, 'c,
-    W: ::World,
-    B: cgmath::Bound<W::Scalar>,
-    C: Culler<W::Scalar, B>,
-> Context<'a, 'c, W, B, C> {
+    W: 'a,
+    S: cgmath::BaseFloat,
+    B: cgmath::Bound<S>,
+    T: cgmath::Transform3<S> + Clone,
+    U: Culler<S, B>,
+> Context<'a, 'c, W, S, B, T, U> {
     /// Create a new context.
-    pub fn new<P>(world: &'a W, culler: &'c mut C, camera: &::Camera<P, W::NodePtr>)
-               -> Context<'a, 'c, W, B, C> where
-        P: cgmath::Projection<W::Scalar> + Clone,
+    pub fn new<C>(world: &'a W, culler: &'c mut U, camera: &C)
+               -> Context<'a, 'c, W, S, B, T, U> where
+        C: ::Camera<S, W, Transform = T>,
     {
         use cgmath::{Matrix, Transform};
-        let cam_inverse = world.get_transform(&camera.node)
-                               .invert().unwrap();
-        let projection = camera.projection.clone().into()
-                               .mul_m(&cam_inverse.clone().into());
+        let cam_inverse = camera.get_transform(world)
+                                .invert().unwrap();
+        let mx_proj: cgmath::Matrix4<S> = camera.get_projection().into(); //TODO
+        let mx_view_proj = mx_proj.mul_m(&cam_inverse.clone().into());
         culler.init();
         Context {
             world: world,
             culler: culler,
             cam_inverse: cam_inverse,
-            projection: projection,
+            view_projection: mx_view_proj,
             dummy: PhantomData,
         }
     }
 
     /// Check entity visibility.
-    pub fn is_visible<V>(&mut self, node: &W::NodePtr, bound: &B)
+    pub fn is_visible<N, V>(&mut self, node: &N, bound: &B)
                       -> Option<V> where
-        V: ::ViewInfo<W::Scalar, W::Transform>,
+        N: ::Node<W, Transform = T>,
+        V: ::ViewInfo<S, T>,
     {
         use cgmath::{Matrix, Transform};
-        let model = self.world.get_transform(node);
+        let model = node.get_transform(&self.world);
         let view = self.cam_inverse.concat(&model);
-        let mvp = self.projection.mul_m(&model.clone().into());
+        let mvp = self.view_projection.mul_m(&model.clone().into());
         if self.culler.cull(bound, &mvp) != cgmath::Relation::Out {
             Some(::ViewInfo::new(mvp, view, model))
         }else {
@@ -92,38 +95,28 @@ impl<'a, 'c,
     }
 
     /// Cull and draw the entities into a stream.
-    pub fn draw<'b, R, M, V, I, H, S>(&mut self, entities: I, phase: &mut H, stream: &mut S)
+    pub fn draw<'b, R, M, F, E, I, V, H, X>(&mut self, entities: I,
+                frag_storage: &'b F, phase: &mut H, stream: &mut X)
                 -> Result<::Report, ::Error> where
-        W: 'b,
-        W::Transform: 'b,
-        W::NodePtr: 'b,
-        W::SkeletonPtr: 'b,
-        B: 'b,
         R: gfx::Resources + 'b,
-        R::Buffer: 'b,
-        R::ArrayBuffer: 'b,
-        R::Shader: 'b,
-        R::Program: 'b,
-        R::FrameBuffer: 'b,
-        R::Surface: 'b,
-        R::Texture: 'b,
-        R::Sampler: 'b,
         M: 'b,
-        V: ::ViewInfo<W::Scalar, W::Transform>,
-        I: Iterator<Item = &'b ::Entity<R, M, W, B>>,
+        E: ::Entity<R, M, F, W, Bound = B, Transform = T> + 'b,
+        I: Iterator<Item = &'b E>,
+        V: ::ViewInfo<S, T>,
         H: gfx_phase::AbstractPhase<R, M, V>,
-        S: gfx::Stream<R>,
+        X: gfx::Stream<R>,
     {
         let mut report = ::Report::new();
         // enqueue entities fragments
         for ent in entities {
-            if !ent.visible {
-                report.calls_invisible += ent.fragments.len() as ::Count;
+            let frag_count = ent.get_fragments(frag_storage).len() as ::Count;
+            if !ent.is_visible() {
+                report.calls_invisible += frag_count;
                 continue
             }
-            if let Some(view_info) = self.is_visible(&ent.node, &ent.bound) {
-                for frag in ent.fragments.iter() {
-                    match phase.enqueue(&ent.mesh, &frag.slice, &frag.material, &view_info) {
+            if let Some(view_info) = self.is_visible(ent, &ent.get_bound()) {
+                for frag in ent.get_fragments(frag_storage).iter() {
+                    match phase.enqueue(ent.get_mesh(), &frag.slice, &frag.material, &view_info) {
                         Ok(true)  => {
                             report.primitives_rendered += frag.slice.get_prim_count();
                             report.calls_passed += 1;
@@ -133,7 +126,7 @@ impl<'a, 'c,
                     }
                 }
             }else {
-                report.calls_culled += ent.fragments.len() as ::Count;
+                report.calls_culled += frag_count;
             }
         }
         // flush into the renderer
