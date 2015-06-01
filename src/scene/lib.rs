@@ -8,6 +8,7 @@ extern crate cgmath;
 
 mod cull;
 
+pub use gfx_phase::AbstractPhase;
 pub use self::cull::{Culler, Frustum, Context};
 
 /// Scene drawing error.

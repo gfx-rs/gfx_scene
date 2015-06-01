@@ -31,9 +31,6 @@ fn main() {
         
         app.render(&mut stream);
 
-        //stream.present(&mut device);
-        stream.flush(&mut device);
-        stream.out.window.swap_buffers();
-        device.cleanup();
+        stream.present(&mut device);
     }
 }
