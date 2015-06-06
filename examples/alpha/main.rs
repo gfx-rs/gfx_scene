@@ -8,7 +8,7 @@ extern crate gfx_phase;
 mod app;
 
 fn main() {
-    use gfx::traits::*;
+    use gfx::traits::Stream;
 
     let window = glutin::WindowBuilder::new()
         .with_title("Alpha: gfx_phase example".to_string())

@@ -96,8 +96,8 @@ for Technique<R> {
                 color: [0.4, 0.5, 0.6, 0.0],
                 _r: PhantomData,
             },
-            None,
             if kernel {&self.state_transparent} else {&self.state_opaque},
+            None,
         )
     }
 

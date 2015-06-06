@@ -9,7 +9,6 @@ extern crate gfx_scene;
 mod app;
 
 fn main() {
-    use gfx::traits::*;
     let window = glutin::WindowBuilder::new()
         .with_title("Beta: gfx_scene example".to_string())
         .with_vsync()
