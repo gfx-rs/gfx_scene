@@ -93,8 +93,8 @@ for Technique<R> {
                 scale: SCALE,
                 _r: std::marker::PhantomData,
             },
-            None,
             &self.state,
+            None,
         )
     }
 

@@ -32,8 +32,9 @@ pub trait ToDepth {
 pub type TechResult<'a, R, P> = (
     &'a gfx::handle::Program<R>,  // program
     P,                          // parameters
-    Option<&'a gfx::Mesh<R>>,   // instancing
     &'a gfx::DrawState,         // state
+    // instancing and additional attributes
+    Option<(gfx::InstanceCount, &'a [gfx::Attribute<R>])>,
 );
 
 /// Technique is basically a `Fn(Entity) -> Option<TechResult>`.

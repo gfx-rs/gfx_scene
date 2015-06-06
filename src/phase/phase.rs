@@ -27,6 +27,7 @@ pub struct Object<S, K, P: gfx::shade::ShaderParam> {
     pub batch: gfx::batch::Core<P>,
     pub params: P,
     pub slice: gfx::Slice<P::Resources>,
+    pub instances: Option<gfx::InstanceCount>,
     pub depth: S,
     pub kernel: K,
     pub state: gfx::DrawState,
@@ -41,6 +42,7 @@ for Object<S, K, P> where
             batch: self.batch.clone(),
             params: self.params.clone(),
             slice: self.slice.clone(),
+            instances: self.instances.clone(),
             depth: self.depth,
             kernel: self.kernel,
             state: self.state
@@ -48,11 +50,18 @@ for Object<S, K, P> where
     }
 }
 
-impl<S, K, P: gfx::shade::ShaderParam> Object<S, K, P> {
-    /// Make a full batch from this object.
-    pub fn with<'a>(&'a self, state: &'a gfx::DrawState) -> gfx::batch::Complete<'a, P> {
-        self.batch.with(&self.slice, &self.params, state)
+impl<'a, S, K, P: gfx::shade::ShaderParam> Object<S, K, P> {
+    fn draw<X>(&self, stream: &mut X)
+            -> Result<(), gfx::DrawError<gfx::batch::Error>> where
+            X: gfx::Stream<P::Resources>,
+    {
+        let batch = self.batch.with(&self.slice, &self.params, &self.state);
+        match self.instances {
+            Some(num) => stream.draw_instanced(&batch, num, 0),
+            None => stream.draw(&batch),
+        }
     }
+
 }
 
 impl<S: PartialOrd, K, P: gfx::shade::ShaderParam> Object<S, K, P> {
@@ -103,7 +112,8 @@ pub mod sort {
         Ordering::Equal
     }
 
-    /*/// Sort by draw state.
+    /* TODO
+    /// Sort by draw state.
     pub fn state<S, K, P: ShaderParam>(a: &Object<S, K, P>, b: &Object<S, K, P>)
                  -> Ordering
     {
@@ -226,17 +236,17 @@ impl<
             None => ()
         }
         // Compile with the technique
-        let (program, mut params, inst_mesh, state) =
+        let (program, mut params, state, instancing) =
             self.technique.compile(kernel, view_info);
         self.technique.fix_params(material, view_info, &mut params);
         let mut temp_mesh = gfx::Mesh::new(orig_mesh.num_vertices);
-        let mesh = match inst_mesh {
-            Some(m) => {
+        let (instances, mesh) = match instancing {
+            Some((num, extra_attributes)) => {
                 temp_mesh.attributes.extend(orig_mesh.attributes.iter()
-                    .chain(m.attributes.iter()).map(|a| a.clone()));
-                &temp_mesh
+                    .chain(extra_attributes.iter()).map(|a| a.clone()));
+                (Some(num), &temp_mesh)
             },
-            None => orig_mesh,
+            None => (None, orig_mesh),
         };
         // Create queue object
         let object = gfx::batch::Core::new(mesh.clone(), program.clone())
@@ -244,6 +254,7 @@ impl<
                 batch: b,
                 params: params,
                 slice: slice.clone(),
+                instances: instances,
                 depth: depth,
                 kernel: kernel,
                 state: *state
@@ -270,13 +281,13 @@ impl<
                 self.queue.sort(fun);
                 // accumulate the sorted draws into the renderer
                 for o in self.queue.iter() {
-                    try!(stream.draw(&o.with(&o.state)));
+                    try!(o.draw(stream));
                 }
             },
             None => {
                 // accumulate the raw draws into the renderer
                 for o in self.queue.objects.iter() {
-                    try!(stream.draw(&o.with(&o.state)));
+                    try!(o.draw(stream));
                 }
             }
         }
