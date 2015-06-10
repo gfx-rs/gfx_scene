@@ -5,6 +5,7 @@ extern crate gfx;
 extern crate gfx_window_glutin;
 extern crate gfx_phase;
 extern crate gfx_scene;
+extern crate hprof;
 
 mod app;
 
@@ -28,8 +29,17 @@ fn main() {
             }
         }
         
+        hprof::start_frame();
+        let g = hprof::enter("render");
         app.render(&mut stream);
+        drop(g);
 
+        let g = hprof::enter("present");
         stream.present(&mut device);
+        drop(g);
+        hprof::end_frame();
+
+        hprof::profiler().print_timing();
+
     }
 }

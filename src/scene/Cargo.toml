@@ -16,3 +16,4 @@ path = "../phase"
 [dependencies]
 cgmath = "*"
 gfx = "0.6.*"
+hprof = "0.1"
