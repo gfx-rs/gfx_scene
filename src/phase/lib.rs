@@ -7,6 +7,7 @@
 extern crate log;
 extern crate gfx;
 extern crate draw_queue;
+extern crate hprof;
 
 mod mem;
 mod phase;

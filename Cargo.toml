@@ -24,6 +24,7 @@ cgmath = "*"
 gfx = "0.6.*"
 glutin = "*"
 gfx_window_glutin = "*"
+hprof = "0.1"
 
 [[example]]
 name = "alpha"

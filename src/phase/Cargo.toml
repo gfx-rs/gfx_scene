@@ -16,3 +16,4 @@ path = "../queue"
 [dependencies]
 log = "*"
 gfx = "0.6.*"
+hprof = "0.1"

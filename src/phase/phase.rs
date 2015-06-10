@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use draw_queue;
 use gfx;
 use mem;
+use hprof;
 
 /// Potential error occuring during rendering.
 pub type FlushError = gfx::DrawError<gfx::batch::Error>;
@@ -176,7 +177,7 @@ impl<
             technique: tech,
             sort: None,
             memory: (),
-            queue: draw_queue::Queue::new()
+            queue: draw_queue::Queue::new(),
         }
     }
 
@@ -275,23 +276,33 @@ impl<
 
     fn flush<S: gfx::Stream<R>>(&mut self, stream: &mut S)
              -> Result<(), FlushError> {
+
         match self.sort {
             Some(fun) => {
+                let g = hprof::enter("sort");
                 // sort the queue
                 self.queue.sort(fun);
+                drop(g);
+
                 // accumulate the sorted draws into the renderer
+                let g = hprof::enter("draw to stream");
                 for o in self.queue.iter() {
                     try!(o.draw(stream));
                 }
+                drop(g);
             },
             None => {
+                let g = hprof::enter("draw to stream");
                 // accumulate the raw draws into the renderer
                 for o in self.queue.objects.iter() {
                     try!(o.draw(stream));
                 }
+                drop(g);
             }
         }
+
         // done
+        let g = hprof::enter("clear");
         self.queue.objects.clear();
         Ok(())
     }

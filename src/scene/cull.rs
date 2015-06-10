@@ -2,6 +2,7 @@ use std::marker::PhantomData;
 use cgmath;
 use gfx;
 use gfx_phase;
+use hprof;
 
 
 /// Generic bound culler.
@@ -67,7 +68,7 @@ impl<'u,
             culler: culler,
             cam_inverse: cam_inverse,
             view_projection: mx_view_proj,
-            dummy: PhantomData,
+            dummy: PhantomData
         }
     }
 
@@ -101,6 +102,10 @@ impl<'u,
         X: gfx::Stream<R>,
     {
         let mut report = ::Report::new();
+        // attach the profiler to the phase
+
+
+        let g = hprof::enter("enqueue");
         // enqueue entities fragments
         for ent in entities {
             let frag_count = ent.get_fragments().len() as ::Count;
@@ -119,10 +124,13 @@ impl<'u,
                         Err(e)    => return Err(::Error::Batch(e)),
                     }
                 }
-            }else {
+            } else {
                 report.calls_culled += frag_count;
             }
         }
+        drop(g);
+
+        let _g = hprof::enter("flush");
         // flush into the renderer
         match phase.flush(stream) {
             Ok(()) => Ok(report),
