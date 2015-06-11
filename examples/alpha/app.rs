@@ -88,11 +88,11 @@ for Technique<R> {
         Some(mat.alpha < 1.0)
     }
 
-    fn compile<'a>(&'a self, kernel: bool, space: &ViewInfo)
-                   -> gfx_phase::TechResult<'a, R, Params<R>> {
+    fn compile<'a>(&'a self, kernel: bool)
+               -> gfx_phase::TechResult<'a, R, Params<R>> {
         (   &self.program,
             Params {
-                transform: space.0.into_fixed(),
+                transform: [[0.0; 4]; 4],
                 color: [0.4, 0.5, 0.6, 0.0],
                 _r: PhantomData,
             },

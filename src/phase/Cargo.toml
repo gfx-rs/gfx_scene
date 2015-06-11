@@ -1,6 +1,6 @@
 [package]
 name = "gfx_phase"
-version = "0.3.0"
+version = "0.4.0"
 description = "Render phase abstraction for gfx-rs"
 license = "Apache-2.0"
 authors = ["The Gfx-rs Developers"]
@@ -11,9 +11,9 @@ path = "lib.rs"
 
 [dependencies.draw_queue]
 path = "../queue"
-#version = "*"
+version = "0.1"
 
 [dependencies]
 log = "*"
-gfx = "0.6.*"
+gfx = "0.6"
 hprof = "0.1"
