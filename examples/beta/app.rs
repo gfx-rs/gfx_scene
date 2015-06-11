@@ -83,9 +83,7 @@ for Technique<R> {
         Some(())
     }
 
-    fn compile<'a>(&'a self, _: (), _: &ViewInfo)
-               -> gfx_phase::TechResult<'a, R, Params<R>>
-    {
+    fn compile<'a>(&'a self, _: ()) -> gfx_phase::TechResult<'a, R, Params<R>> {
         (   &self.program,
             Params {
                 offset: [0.0; 2],

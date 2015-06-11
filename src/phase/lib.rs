@@ -50,9 +50,10 @@ pub trait Technique<R: gfx::Resources, M: Material, V: ToDepth> {
     /// Test if this mesh/material can be drawn using the technique.
     fn test(&self, &gfx::Mesh<R>, &M) -> Option<Self::Kernel>;
     /// Compile a given kernel by producing a program, parameter block,
-    /// a draw state, and an optional instancing data.
-    fn compile<'a>(&'a self, Self::Kernel, &V)
+    /// a draw state, and optional instancing data.
+    fn compile<'a>(&'a self, Self::Kernel)
                    -> TechResult<'a, R, Self::Params>;
     /// Fix the shader parameters, using an updated material and view info.
+    /// Called every time before a batch is added to the draw queue.
     fn fix_params(&self, &M, &V, &mut Self::Params);
 }

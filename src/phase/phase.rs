@@ -238,7 +238,7 @@ impl<
         }
         // Compile with the technique
         let (program, mut params, state, instancing) =
-            self.technique.compile(kernel, view_info);
+            self.technique.compile(kernel);
         self.technique.fix_params(material, view_info, &mut params);
         let mut temp_mesh = gfx::Mesh::new(orig_mesh.num_vertices);
         let (instances, mesh) = match instancing {
@@ -302,7 +302,7 @@ impl<
         }
 
         // done
-        let g = hprof::enter("clear");
+        let _g = hprof::enter("clear");
         self.queue.objects.clear();
         Ok(())
     }
