@@ -130,7 +130,7 @@ pub trait Entity<R: gfx::Resources, M>: Node {
 /// An abstract camera.
 pub trait Camera<S>: Node {
     /// Associated projection type (perspective, ortho, etc)
-    type Projection: cgmath::Projection<S>;
+    type Projection: std::convert::Into<cgmath::Matrix4<S>>;
     /// Get the projection.
     fn get_projection(&self) -> Self::Projection;
     /// Compute the view-projection matrix.
