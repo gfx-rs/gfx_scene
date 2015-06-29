@@ -1,7 +1,9 @@
 language: rust
 rust:
+  - 1.0.0
+  - stable
+  - beta
   - nightly
-  - 1.0.0-beta.4
 env:
   global:
     - LD_LIBRARY_PATH: /usr/local/lib
