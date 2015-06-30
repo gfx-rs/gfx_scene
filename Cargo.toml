@@ -19,11 +19,13 @@ path = "src/phase"
 [dependencies.gfx_scene]
 path = "src/scene"
 
-[dev_dependencies]
-cgmath = "*"
-gfx = "0.6"
+[dependencies]
 glutin = "*"
 gfx_window_glutin = "*"
+
+[dev-dependencies]
+cgmath = "*"
+gfx = "0.6"
 hprof = "0.1"
 
 [[example]]
