@@ -304,6 +304,7 @@ impl<
         // done
         let _g = hprof::enter("clear");
         self.queue.objects.clear();
+        self.memory.clear();
         Ok(())
     }
 }

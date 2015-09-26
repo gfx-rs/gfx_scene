@@ -15,11 +15,14 @@ pub trait Memory<T, S> {
     fn lookup(&self, &T) -> Option<MemResult<S>>;
     /// Store the result into memory.
     fn store(&mut self, T, MemResult<S>);
+    /// Clear all the stored objects
+    fn clear(&mut self);
 }
 
 impl<T, S> Memory<T, S> for () {
     fn lookup(&self, _: &T) -> Option<MemResult<S>> { None }
     fn store(&mut self, _: T, _: MemResult<S>) {}
+    fn clear(&mut self) {}
 }
 
 impl<T: Hash + Eq, S: Clone> Memory<T, S> for HashMap<T, MemResult<S>> {
@@ -28,5 +31,8 @@ impl<T: Hash + Eq, S: Clone> Memory<T, S> for HashMap<T, MemResult<S>> {
     }
     fn store(&mut self, input: T, out: MemResult<S>) {
         self.insert(input, out);
+    }
+    fn clear(&mut self) {
+        HashMap::clear(self);
     }
 }
