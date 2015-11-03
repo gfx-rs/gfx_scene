@@ -1,6 +1,6 @@
 [package]
 name = "gfx_phase"
-version = "0.5.0"
+version = "0.6.0"
 description = "Render phase abstraction for gfx-rs"
 license = "Apache-2.0"
 authors = ["The Gfx-rs Developers"]
@@ -15,5 +15,5 @@ version = "0.1"
 
 [dependencies]
 log = "*"
-gfx = "0.7"
+gfx = "0.8"
 hprof = "0.1"

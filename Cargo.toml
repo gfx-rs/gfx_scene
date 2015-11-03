@@ -20,10 +20,10 @@ path = "src/phase"
 path = "src/scene"
 
 [dev-dependencies]
-cgmath = "*"
-gfx = "0.7"
-glutin = "0.3"
-gfx_window_glutin = "0.5"
+cgmath = "0.4"
+gfx = "0.8"
+glutin = "0.4"
+gfx_window_glutin = "0.6"
 hprof = "0.1"
 
 [[example]]

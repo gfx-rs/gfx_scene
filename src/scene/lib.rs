@@ -5,6 +5,7 @@
 extern crate gfx_phase;
 extern crate gfx;
 extern crate cgmath;
+extern crate collision;
 extern crate hprof;
 
 mod cull;
