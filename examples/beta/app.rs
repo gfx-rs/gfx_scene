@@ -1,5 +1,6 @@
 use std;
 use cgmath;
+use collision;
 use gfx::attrib::Floater;
 use gfx;
 use gfx::traits::*;
@@ -97,8 +98,7 @@ for Technique<R> {
     }
 
     fn fix_params(&self, _: &Material, space: &ViewInfo, params: &mut Params<R>) {
-        use cgmath::FixedArray;
-        params.offset = *space.0.as_fixed();
+        params.offset = space.0.into();
     }
 }
 
@@ -117,7 +117,7 @@ struct Camera<S>(cgmath::Ortho<S>);
 impl<S: cgmath::BaseFloat> gfx_scene::Node for Camera<S> {
     type Transform = Transform<S>;
     fn get_transform(&self) -> Transform<S> {
-        cgmath::Transform::identity()
+        cgmath::Transform::one()
     }
 }
 
@@ -132,7 +132,7 @@ struct Entity<S, R: gfx::Resources> {
     mesh: gfx::Mesh<R>,
     fragments: Vec<gfx_scene::Fragment<R, Material>>,
     transform: Transform<S>,
-    bound: cgmath::Aabb3<S>,
+    bound: collision::Aabb3<S>,
 }
 
 impl<S: Clone, R: gfx::Resources> gfx_scene::Node for Entity<S, R> {
@@ -143,7 +143,7 @@ impl<S: Clone, R: gfx::Resources> gfx_scene::Node for Entity<S, R> {
 }
 
 impl<S: Clone, R: gfx::Resources> gfx_scene::Entity<R, Material> for Entity<S, R> {
-    type Bound = cgmath::Aabb3<S>;
+    type Bound = collision::Aabb3<S>;
     fn get_bound(&self) -> Self::Bound {
         self.bound.clone()
     }
@@ -177,17 +177,17 @@ impl<R: gfx::Resources> App<R> {
 
         let num = 10usize;
         let entities = (0..num).map(|i| {
-            use cgmath::{Aabb3, Point3, vec2};
+            use cgmath::{Point3, vec2};
             let angle = (i as f32) / (num as f32) * std::f32::consts::PI * 2.0;
             let offset = vec2(4.0 * angle.cos(), 4.0 * angle.sin());
             Entity {
                 mesh: mesh.clone(),
                 transform: cgmath::Decomposed {
                     scale: 1.0,
-                    rot: cgmath::Quaternion::identity(),
+                    rot: cgmath::Quaternion::one(),
                     disp: cgmath::vec3(offset.x, offset.y, 0.0),
                 },
-                bound: Aabb3::new(Point3::new(0f32, 0.0, 0.0), Point3::new(1.0, 1.0, 0.0)),
+                bound: collision::Aabb3::new(Point3::new(0f32, 0.0, 0.0), Point3::new(1.0, 1.0, 0.0)),
                 fragments: vec![
                     gfx_scene::Fragment::new(Material, slice.clone()),
                 ],

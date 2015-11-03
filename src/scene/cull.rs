@@ -1,22 +1,25 @@
 use std::marker::PhantomData;
 use cgmath;
+use collision;
 use gfx;
 use gfx_phase;
 use hprof;
 
 
 /// Generic bound culler.
-pub trait Culler<S, B: cgmath::Bound<S>> {
+pub trait Culler<S: cgmath::BaseFloat, B: collision::Bound<S>> {
     /// Start a new culling session.
     fn init(&mut self);
     /// Cull a bound with a given transformation matrix.
-    fn cull(&mut self, &B, &cgmath::Matrix4<S>) -> cgmath::Relation;
+    fn cull(&mut self, &B, &cgmath::Matrix4<S>) -> collision::Relation;
 }
 
-impl<S, B: cgmath::Bound<S>> Culler<S, B> for () {
+impl<S, B: collision::Bound<S>> Culler<S, B> for ()
+    where S: cgmath::BaseFloat
+{
     fn init(&mut self) {}
-    fn cull(&mut self, _: &B, _: &cgmath::Matrix4<S>) -> cgmath::Relation {
-        cgmath::Relation::Cross
+    fn cull(&mut self, _: &B, _: &cgmath::Matrix4<S>) -> collision::Relation {
+        collision::Relation::Cross
     }
 }
 
@@ -30,9 +33,9 @@ impl<S, B> Frustum<S, B> {
     }
 }
 
-impl<S: cgmath::BaseFloat, B: cgmath::Bound<S>> Culler<S, B> for Frustum<S, B> {
+impl<S: cgmath::BaseFloat, B: collision::Bound<S>> Culler<S, B> for Frustum<S, B> {
     fn init(&mut self) {}
-    fn cull(&mut self, bound: &B, mvp: &cgmath::Matrix4<S>) -> cgmath::Relation {
+    fn cull(&mut self, bound: &B, mvp: &cgmath::Matrix4<S>) -> collision::Relation {
         bound.relate_clip_space(mvp)
     }
 }
@@ -40,7 +43,8 @@ impl<S: cgmath::BaseFloat, B: cgmath::Bound<S>> Culler<S, B> for Frustum<S, B> {
 
 /// Culler context.
 pub struct Context<'u, S, B, T, U> where
-    B: cgmath::Bound<S>,
+    S: cgmath::BaseFloat,
+    B: collision::Bound<S>,
     U: Culler<S, B> + 'u,
 {
     culler: &'u mut U,
@@ -51,7 +55,7 @@ pub struct Context<'u, S, B, T, U> where
 
 impl<'u,
     S: cgmath::BaseFloat,
-    B: cgmath::Bound<S>,
+    B: collision::Bound<S>,
     T: cgmath::Transform3<S> + Clone,
     U: Culler<S, B>,
 > Context<'u, S, B, T, U> {
@@ -76,13 +80,13 @@ impl<'u,
     pub fn is_visible<N, V>(&mut self, node: &N, bound: &B)
                       -> Option<V> where
         N: ::Node<Transform = T>,
-        V: ::ViewInfo<S, T>,
+        V: ::ViewInfo<S, T>
     {
         use cgmath::{Matrix, Transform};
         let model = node.get_transform();
         let view = self.cam_inverse.concat(&model);
         let mvp = self.view_projection.mul_m(&model.clone().into());
-        if self.culler.cull(bound, &mvp) != cgmath::Relation::Out {
+        if self.culler.cull(bound, &mvp) != collision::Relation::Out {
             Some(::ViewInfo::new(mvp, view, model))
         }else {
             None

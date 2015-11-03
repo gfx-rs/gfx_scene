@@ -1,4 +1,5 @@
 extern crate cgmath;
+extern crate collision;
 extern crate glutin;
 #[macro_use]
 extern crate gfx;
