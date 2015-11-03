@@ -71,7 +71,7 @@ impl Report {
 /// Abstract scene that can be drawn into something.
 pub trait AbstractScene<R: gfx::Resources> {
     /// A type of the view information.
-    type ViewInfo;
+    type ViewInfo: gfx_phase::ToDepth;
     /// A type of the material.
     type Material;
     /// A type of the camera.
@@ -147,7 +147,9 @@ pub trait Camera<S>: Node {
 
 /// Abstract information about the view. Supposed to containt at least
 /// Model-View-Projection transform for the shader.
-pub trait ViewInfo<S, T>: gfx_phase::ToDepth<Depth = S> {
+pub trait ViewInfo<S, T>: gfx_phase::ToDepth<Depth = S>
+    where S: Copy+PartialOrd+std::fmt::Debug
+{
     /// Construct a new information block.
     fn new(mvp: cgmath::Matrix4<S>, view: T, model: T) -> Self;
 }

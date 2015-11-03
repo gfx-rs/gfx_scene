@@ -7,14 +7,16 @@ use hprof;
 
 
 /// Generic bound culler.
-pub trait Culler<S, B: collision::Bound<S>> {
+pub trait Culler<S: cgmath::BaseFloat, B: collision::Bound<S>> {
     /// Start a new culling session.
     fn init(&mut self);
     /// Cull a bound with a given transformation matrix.
     fn cull(&mut self, &B, &cgmath::Matrix4<S>) -> collision::Relation;
 }
 
-impl<S, B: collision::Bound<S>> Culler<S, B> for () {
+impl<S, B: collision::Bound<S>> Culler<S, B> for ()
+    where S: cgmath::BaseFloat
+{
     fn init(&mut self) {}
     fn cull(&mut self, _: &B, _: &cgmath::Matrix4<S>) -> collision::Relation {
         collision::Relation::Cross
@@ -41,6 +43,7 @@ impl<S: cgmath::BaseFloat, B: collision::Bound<S>> Culler<S, B> for Frustum<S, B
 
 /// Culler context.
 pub struct Context<'u, S, B, T, U> where
+    S: cgmath::BaseFloat,
     B: collision::Bound<S>,
     U: Culler<S, B> + 'u,
 {
@@ -77,7 +80,7 @@ impl<'u,
     pub fn is_visible<N, V>(&mut self, node: &N, bound: &B)
                       -> Option<V> where
         N: ::Node<Transform = T>,
-        V: ::ViewInfo<S, T>,
+        V: ::ViewInfo<S, T>
     {
         use cgmath::{Matrix, Transform};
         let model = node.get_transform();
