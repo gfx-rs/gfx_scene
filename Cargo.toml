@@ -21,9 +21,10 @@ path = "src/scene"
 
 [dev-dependencies]
 cgmath = "0.4"
+collision = "0.4"
 gfx = "0.8"
 glutin = "0.4"
-gfx_window_glutin = "0.6"
+gfx_window_glutin = "0.7"
 hprof = "0.1"
 
 [[example]]

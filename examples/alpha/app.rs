@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 use cgmath::{Matrix, Matrix4, Point3, Vector3, vec3};
-use cgmath::{FixedArray, Transform, AffineMatrix3};
+use cgmath::{Transform, AffineMatrix3};
 use gfx;
 use gfx::attrib::Floater;
 use gfx::traits::*;
@@ -102,7 +102,7 @@ for Technique<R> {
     }
 
     fn fix_params(&self, mat: &Material, space: &ViewInfo, params: &mut Params<R>) {
-        params.transform = *space.0.as_fixed();
+        params.transform = space.0.into();
         params.color[3] = mat.alpha;
     }
 }
