@@ -1,5 +1,9 @@
 [![Build Status](https://travis-ci.org/gfx-rs/gfx_scene.png?branch=master)](https://travis-ci.org/gfx-rs/gfx_scene)
 
+## Current Status
+
+The library is based on gfx-0.8. The architecture has changed quite a lot from those days, and it's not clear as to how to properly update gfx_scene to work with the latest gfx-rs. Thus, the library is considered **obsolete** until this is figured out.
+
 ## Why high-level rendering?
 
 gfx-rs established a solid basis for API abstraction and safe bind-less draw calls. While is used by simpler apps directly, more complex ones are expected to operate on a higher level. Some elements of this level, like materials, are extremely diverse. Others can be implemented in a rather common way:
